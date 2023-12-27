@@ -335,16 +335,19 @@ class TestTimeUnits(unittest.TestCase):
         self.assertEqual(time_unit_2.value, '15m_30s_3u') 
         self.assertEqual(TimeUnit(days=1).value, '1D') # This is obtained using the unit's string representation
 
-        # Test unit equalities 
+        # Test unit equalities and inequalities 
         self.assertTrue(TimeUnit(hours=1) == TimeUnit(hours=1))
         self.assertTrue(TimeUnit(hours=1) == '1h')
         self.assertFalse(TimeUnit(hours=1) == TimeUnit(hours=2))
-        self.assertFalse(TimeUnit(hours=1) == 'variable')
+        self.assertFalse(TimeUnit(hours=1) == 'a_string')
 
         self.assertTrue(TimeUnit(days=1) == TimeUnit(days=1))
         self.assertTrue(TimeUnit(days=1) == '1D')
         self.assertFalse(TimeUnit(days=1) == TimeUnit(days=2))
-        self.assertFalse(TimeUnit(days=1) == 'variable')
+        self.assertFalse(TimeUnit(days=1) == 'a_string')
+
+        self.assertFalse(TimeUnit('86400s') == TimeUnit('1D'))
+
 
 
     def test_TimeUnit_math(self):

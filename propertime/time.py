@@ -453,6 +453,10 @@ class TimeUnit:
                 if self.microseconds != other.microseconds:
                     return False
                 return True
+            elif self.is_calendar() and not other.is_calendar():
+                return False
+            elif not self.is_calendar() and other.is_calendar():
+                return False
             else:
                 # Check using the duration in seconds, as 15m and 900s are actually the same unit
                 if self.as_seconds() == other.as_seconds():
