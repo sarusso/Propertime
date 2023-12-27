@@ -173,13 +173,12 @@ class Time(float):
         if self.tz:
             tz_or_offset = self.tz
         else:
-            dt_str = str(self.dt())
-            if '+' in dt_str:
-                tz_or_offset = '+'+dt_str.split('+')[1]
+            iso_time_part = self.iso().split('T')[1]
+            if '+' in iso_time_part:
+                tz_or_offset = '+'+iso_time_part.split('+')[1]
             else:
-                tz_or_offset = '-'+dt_str.split('-')[1]
-                
-        
+                tz_or_offset = '-'+iso_time_part.split('-')[1]
+
         if decimal_part == '0':
             return ('Time: {} ({} {})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), tz_or_offset))
         else:

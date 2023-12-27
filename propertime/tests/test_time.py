@@ -176,6 +176,10 @@ class TestTime(unittest.TestCase):
         time = Time(523291560, offset=3600)
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:46:00 +01:00)')
 
+        # Negative offset
+        time = Time(1702928535.0, offset=-68400)   
+        self.assertEqual(str(time), 'Time: 1702928535.0 (2023-12-18 00:42:15 -19:00)')
+
         # Offset non-hourly and sub-second
         time = Time(523291560, offset=3546.0945)
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06.094500)')
