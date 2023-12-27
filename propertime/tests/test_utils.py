@@ -15,10 +15,10 @@ logger.setup()
 class TestUtils(unittest.TestCase):
 
     def test_correct_dt_dst(self):
-        
+
         # 2015-03-29 01:15:00+01:00
         date_time =  dt(2015,3,29,1,15,0, tz='Europe/Rome')
-        
+
         # 2015-03-29 02:15:00+01:00, Wrong on Europe/Rome and cannot be corrected as it does not exist
         date_time = date_time + datetime.timedelta(hours=1)
         with self.assertRaises(ValueError):
@@ -34,11 +34,11 @@ class TestUtils(unittest.TestCase):
         # Test Naive
         date_time = dt(2015,3,29,2,15,0)
         self.assertEqual(str(date_time), '2015-03-29 02:15:00')
-        
+
         # Test UTC
         date_time = dt(2015,3,29,2,15,0, tz='UTC')
         self.assertEqual(str(date_time), '2015-03-29 02:15:00+00:00')
-        
+
         # Test with  time zone
         date_time = dt(2015,3,25,4,15,0, tz='Europe/Rome')
         self.assertEqual(str(date_time), '2015-03-25 04:15:00+01:00')
@@ -48,7 +48,7 @@ class TestUtils(unittest.TestCase):
         # Not existent time raises
         with self.assertRaises(ValueError):
             dt(2015,3,29,2,15,0, tz='Europe/Rome')
-        
+
         # Ambiguous time raises (if strict, otherwise it just issues a warning) 
         with self.assertRaises(ValueError):
             dt(2015,10,25,2,15,0, tz='Europe/Rome', strict=True)
@@ -74,7 +74,7 @@ class TestUtils(unittest.TestCase):
 
         date_time = dt(1926,8,1,16,46, tz='Europe/Rome')
         self.assertEqual(str(date_time), '1926-08-01 16:46:00+01:00')
-        
+
         # Very future years (no DST)
         date_time = dt(3567,12,1,16,46, tz='Europe/Rome')
         self.assertEqual(str(date_time), '3567-12-01 16:46:00+01:00')
@@ -82,17 +82,17 @@ class TestUtils(unittest.TestCase):
         date_time = dt(3567,8,1,16,46, tz='Europe/Rome')
         self.assertEqual(str(date_time), '3567-08-01 16:46:00+01:00')
 
-    
+
     def test_s_from_dt(self):
-        
+
         date_time = dt(2001,12,1,16,46,10,6575, tz='Europe/Rome')
         self.assertEqual(s_from_dt(date_time), 1007221570.006575)
-        
+
         # Naive datetime without the time zone and test conversion to epoch fails
         date_time = datetime.datetime.strptime('2007-12-10', '%Y-%m-%d')
         with self.assertRaises(ValueError):
             s_from_dt(date_time)
-        
+
         # Naive datetime specifying on which time zone works
         date_time = dt(2023,12,3,16,12,0)
         self.assertEqual(s_from_dt(date_time, tz='UTC'), 1701619920)
@@ -103,14 +103,14 @@ class TestUtils(unittest.TestCase):
 
 
     def test_dt_from_s(self):
-        
+
         # Create a datetime from epoch seconds with no time zone (assume UTC)
         self.assertEqual(dt_from_s(1197244800), dt(2007,12,10,0,0, tz='UTC'))
 
         # Create a datetime from epoch seconds with a given time zone
         self.assertEqual(dt_from_s(1197241200, tz='Europe/Rome'), dt(2007,12,10,0,0, tz='Europe/Rome'))
 
-        
+
     def test_str_conversions(self):
 
         # To ISO on UTC, offset is 0.
@@ -130,10 +130,10 @@ class TestUtils(unittest.TestCase):
 
         # From ISO on offset +00:00
         self.assertEqual(str(dt_from_str('1986-08-01T16:46:00.362752+00:00')), '1986-08-01 16:46:00.362752+00:00')
-        
+
         # From ISO on offset +02:00
         self.assertEqual(str(dt_from_str('1986-08-01T16:46:00.362752+02:00')), '1986-08-01 16:46:00.362752+02:00')
-        
+
         # From ISO on offset +02:00 (with microseconds)
         self.assertEqual(str(dt_from_str('1986-08-01T16:46:00+02:00')), '1986-08-01 16:46:00+02:00')
 

@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 """Time classes"""
 
+import re
+import math
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.tz.tz import tzoffset
-from .utils import timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt
+from .utils import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
+                   get_tz_offset, is_numerical, is_dt_inconsistent, correct_dt_dst
+from .exceptions import ConsistencyError
 
 # Setup logging
 import logging
@@ -47,7 +51,7 @@ class Time(float):
         if isinstance(value, str):
 
             # Handle naive string if it is the case
-            if not (value[-1] == 'Z' or '+' in value or '-' in value.split('T')[1]):
+            if not (value[-1] == 'Z' or '+' in value or ('-' in value and '-' in value.split('T')[1])):
 
                 # Look at the tz argument if any, and use it
                 if kwargs.get('tz', None):    
@@ -79,19 +83,35 @@ class Time(float):
             value = now_s()
 
         else:
-            # TODO: check float-compatible value type?
-            #try:
-            #    float(value)
-            #except:
-            #    raise ValueError('Cannot convert to float')
-            pass
+            # Detect classic datetime-like init
+            if len(args) > 0:
+
+                tz_or_offset = timezonize(kwargs.get('tz')) if timezonize(kwargs.get('tz', None)) else kwargs.get('offset', None)
+
+                if isinstance(tz_or_offset, int):
+                    tz_or_offset = tzoffset(None, tz_or_offset)
+
+                if not tz_or_offset:
+                    tz_or_offset = 'UTC'
+
+                value = s_from_dt(dt(value, *args, tz=tz_or_offset))
+
+            else:
+                # Check float-compatible value type
+                try:
+                    float(value)
+                except:
+                    raise ValueError('Don\'t know how to create Time from "{}" of type "{}"'.format(value, value.__class__.__name__))
 
         # Create the new instance
         time_instance = super().__new__(cls, value)
-        
+
         # Handle time zone & offset arguments. Can override "value" (string/datetime) ones.
-        given_tz = timezonize(kwargs.get('tz', None))
-        given_offset = kwargs.get('offset', None)
+        given_tz = timezonize(kwargs.pop('tz', None))
+        given_offset = kwargs.pop('offset', None)
+
+        if kwargs:
+            raise ValueError('Unhandled kwargs: {}'.format(kwargs))
 
         if given_tz or (embedded_tz is not None and given_offset is None):
 
@@ -114,13 +134,13 @@ class Time(float):
             # Otherwise, default to UTC
             time_instance._tz = pytz.UTC
             time_instance._offset = 0
-        
+
         return time_instance
 
     @property
     def tz(self):
         return self._tz
-    
+
     @tz.setter
     def tz(self, value):
         self._tz = value
@@ -138,7 +158,7 @@ class Time(float):
     @property
     def offset(self):
         return self._offset
-    
+
     @offset.setter
     def offset(self, value):
         self._offset = value
@@ -148,7 +168,7 @@ class Time(float):
             del self._dt
         except AttributeError:
             pass
-        
+
         # Unset the time zone
         self._tz = None
 
@@ -166,10 +186,10 @@ class Time(float):
         return str_from_dt(self.dt())
 
     def __str__(self):
-        
+
         self_as_float = float(self)
         decimal_part = str(self_as_float).split('.')[1]
-        
+
         if self.tz:
             tz_or_offset = self.tz
         else:
@@ -186,3 +206,4 @@ class Time(float):
 
     def __repr__(self):
         return self.__str__()
+

@@ -4,7 +4,7 @@ import unittest
 import pytz
 from datetime import datetime
 from ..utils import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, now_s
-from ..time import Time
+from ..time import Time, TimeUnit
 from dateutil.tz.tz import tzoffset
 
 # Setup logging
@@ -41,16 +41,34 @@ class TestTime(unittest.TestCase):
 
         time = Time(1702928535.0, offset=-68400)
         self.assertEqual(time.tz, None)
-        self.assertEqual(time.offset, -68400)        
+        self.assertEqual(time.offset, -68400)
 
         # Time with time zone
         time = Time(1702928535.0, tz='America/New_York')
         self.assertEqual(str(time.tz), 'America/New_York')
-        self.assertEqual(time.offset, -68400)        
+        self.assertEqual(time.offset, -68400)
 
         time = Time(1702928535.0, tz='Europe/Rome')
         self.assertEqual(str(time.tz), 'Europe/Rome')
-        self.assertEqual(time.offset, 3600)      
+        self.assertEqual(time.offset, 3600)
+
+        # Time with datetime-like arguments
+        time = Time(2023,12,1)
+        self.assertEqual(time, 1701388800.0)
+        self.assertEqual(str(time.dt()), '2023-12-01 00:00:00+00:00')
+        self.assertEqual(str(time.tz), 'UTC')
+
+        # Time with datetime-like arguments and time zone as argument
+        time = Time(2023,12,1, tz='Europe/Rome')
+        self.assertEqual(time, 1701385200.0)
+        self.assertEqual(str(time.dt()), '2023-12-01 00:00:00+01:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+
+        # Time with datetime-like arguments and offset as argument
+        time = Time(2023,12,1, offset=3600)
+        self.assertEqual(time, 1701385200.0)
+        self.assertEqual(str(time.dt()), '2023-12-01 00:00:00+01:00')
+        self.assertEqual(time.tz, None)
 
         # Time from naive datetime (assumed as UTC)
         time = Time(dt(2023,12,3,16,12,0))
@@ -71,7 +89,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time, 1701616320.0)
         self.assertEqual(str(time.dt()), '2023-12-03 16:12:00+01:00')
         self.assertEqual(time.tz, None)
-        
+
         # Time from datetime with offset
         time = Time(datetime(2023,12,3,16,12,0, tzinfo=tzoffset(None, 3600)))
         self.assertEqual(time, 1701616320.0)
@@ -83,7 +101,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time, 1701619920.0)
         self.assertEqual(str(time.dt()), '2023-12-03 16:12:00+00:00')
         self.assertEqual(time.tz, pytz.UTC)
-        
+
         # Time from datetime with time zone
         time = Time(timezonize('Europe/Rome').localize(datetime(2023,12,3,16,12,0)))
         self.assertEqual(time, 1701616320.0)
@@ -122,7 +140,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time, 523298760.0)
         self.assertEqual(str(time.tz), 'UTC')
         self.assertEqual(time.offset, 0)
-        
+
         # Time from string with an offset on UTC
         time = Time('1986-08-01T16:46:00+00:00')
         self.assertEqual(time, 523298760.0)
@@ -161,9 +179,17 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.tz), 'America/New_York')
         self.assertEqual(time.offset, -72000)
 
+        # Invalid init string
+        with self.assertRaises(ValueError):
+            Time('aaa')
+
+        # Unknown init type
+        with self.assertRaises(ValueError):
+            Time({})
+
 
     def test_string_representation(self):
-        
+
         # UTC
         time = Time(523291560)
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 14:46:00 UTC)')
@@ -183,33 +209,33 @@ class TestTime(unittest.TestCase):
         # Offset non-hourly and sub-second
         time = Time(523291560, offset=3546.0945)
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06.094500)')
-                
+
         # Time zone
         time = Time(523291560, tz='Europe/Rome')
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome)')
 
-    
+
     def test_conversions(self):
-        
+
         # As datetime, on UTC
         time = Time(5.6)        
         self.assertEqual(time.dt(), datetime(1970,1,1,0,0,5,600000, tzinfo=pytz.UTC))
-        
+
         # As datetime, with an offset
         time = Time(523291560, offset=1234)
         self.assertEqual(time.dt(), datetime(1986,8,1,15,6,34, tzinfo=tzoffset(None, 1234)))
-              
+
         # As datetime, on Europe/Rome
         time = Time(523291560, tz='Europe/Rome')
         self.assertEqual(time.dt(), dt(1986,8,1,16,46,0, tz='Europe/Rome'))
-        
+
         # As ISO
         time = Time(523291560, tz='Europe/Rome')
         self.assertEqual(time.iso(), '1986-08-01T16:46:00+02:00')
 
 
     def test_change_offset_and_timezone(self):
-        
+
         # Change time zone
         time = Time(523291560, tz='Europe/Rome')
         time.dt() # Call it to trigger caching the _dt
@@ -236,7 +262,7 @@ class TestTime(unittest.TestCase):
 
 
     def test_operations(self):
-  
+
         # Operations
         time1 = Time(4.3)
         time2 = Time(4.2)

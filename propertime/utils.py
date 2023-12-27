@@ -13,8 +13,8 @@ UTC = pytz.UTC
 def timezonize(tz):
     """Convert a string representation of a time zone to its pytz object, or
     do nothing if the argument is already a pytz time zone or tzoffset or None"""
-    
-    # Checking if somthing is a valid pytz object is hard as it seems that they are spread around the pytz package.
+
+    # Checking if something is a valid pytz object is hard as it seems that they are spread around the pytz package.
     #
     # Option 1): Try to convert if string or unicode, otherwise try to instantiate a datetieme object decorated
     # with the time zone in order to check if it is a valid one. 
@@ -23,16 +23,16 @@ def timezonize(tz):
     # http://stackoverflow.com/questions/14570802/python-check-if-object-is-instance-of-any-class-from-a-certain-module
     #
     # Option 3) perform a hand-made test. We go for this one, tests would fail if something changes in this approach.
-    
+
     if tz is None:
         return tz
-    
+
     if isinstance(tz,tzoffset):
         return tz
-    
+
     if not 'pytz' in str(type(tz)):
         tz = pytz.timezone(tz)
-  
+
     return tz
 
 
@@ -42,11 +42,11 @@ def is_dt_inconsistent(dt):
 
     # https://en.wikipedia.org/wiki/Tz_database
     # https://www.iana.org/time-zones
-    
+
     if dt.tzinfo is None:
         return False
     else:
-        
+
         # This check is quite heavy but there is apparently no other way to do it.
         if dt.utcoffset() != dt_from_s(s_from_dt(dt), tz=dt.tzinfo).utcoffset():
             return True
@@ -78,7 +78,7 @@ def now_dt(tz='UTC'):
 def dt(*args, **kwargs):
     """Initialize a datetime object with the time zone in the proper way. Using the standard
     datetime initilization leads to various problems if setting a pytz time zone.
-    
+
     Args:
         year(int): the year.
         month(int): the month.
@@ -104,7 +104,7 @@ def dt(*args, **kwargs):
         tz = timezonize(tz)
 
     if offset_s is not None:
-    
+
         # Special case for the offset in seconds
         time_dt = datetime.datetime(*args, tzinfo=tzoffset(None, offset_s))
 
@@ -117,7 +117,7 @@ def dt(*args, **kwargs):
             time_dt = datetime.datetime(*args, tzinfo=tz)
         else:     
             time_dt = tz.localize(datetime.datetime(*args))
-        
+
         if not trustme and tz and tz != UTC:
             if is_dt_ambiguous_without_offset(time_dt):
                 if strict:
@@ -129,7 +129,7 @@ def dt(*args, **kwargs):
     if not trustme and tz and tz != UTC:
         if is_dt_inconsistent(time_dt):
             raise ValueError('Sorry, time {} does not exist on time zone {}'.format(time_dt, tz))
-    
+
     return time_dt
 
 
@@ -160,7 +160,7 @@ def correct_dt_dst(dt_obj):
 
 def as_tz(dt, tz):
     """Get a datetime object as if it was on the given time zone.
-    
+
     Arguments:
         dt(datetime): the datetime object.
         tz(tzinfo,pytz,str): the time zone.
@@ -180,7 +180,7 @@ def dt_from_s(s, tz='UTC'):
 
     pytz_tz = timezonize(tz)
     timestamp_dt = timestamp_dt.replace(tzinfo=pytz.utc).astimezone(pytz_tz)
-    
+
     return timestamp_dt
 
 
@@ -198,7 +198,7 @@ def s_from_dt(dt, tz=None):
         # get the datetime.timestamp() wrong and compute seconds on local time zone.
         microseconds_part = (dt.microsecond/1000000.0) if dt.microsecond else 0
         return (calendar.timegm(dt.utctimetuple()) + microseconds_part)
-    
+
     except TypeError:
         # This catch and tris to circumnavigate a specific bug in Pandas Timestamp():
         # TypeError: an integer is required (https://github.com/pandas-dev/pandas/issues/32174)
@@ -228,31 +228,31 @@ def dt_from_str(string, tz=None):
     elif ' ' in string:
         date, time = string.split(' ')
     else:
-        raise ValueError('Cannot find any date/time separator (looking for "T" or " " in "{}"'.format(string))
-        
+        raise ValueError('Cannot find any date/time separator (looking for "T" or " " in "{}")'.format(string))
+
     # UTC
     if time.endswith('Z'):
         tz='UTC'
         offset_s = 0
         time = time[:-1]
-    
+
     # Positive offset
     elif ('+') in time:
         time, offset = time.split('+')
-        offset_s = (int(offset.split(':')[0])*60 + int(offset.split(':')[1]) )* 60   
-    
+        offset_s = (int(offset.split(':')[0])*60 + int(offset.split(':')[1]) )* 60
+
     # Negative offset
     elif ('-') in time:
         time, offset = time.split('-')
-        offset_s = -1 * (int(offset.split(':')[0])*60 + int(offset.split(':')[1])) * 60      
-    
+        offset_s = -1 * (int(offset.split(':')[0])*60 + int(offset.split(':')[1])) * 60
+
     # Naive
     else:  
         offset_s = None
-    
+
     # Handle time
     hour, minute, second = time.split(':')
-    
+
     # Now parse date
     year, month, day = date.split('-') 
 
@@ -268,7 +268,7 @@ def dt_from_str(string, tz=None):
     else:
         second  = int(second)
         usecond = 0
-    
+
     return dt(year, month, day, hour, minute, second, usecond, tz=tz, offset_s=offset_s)
 
 
@@ -276,3 +276,16 @@ def str_from_dt(dt):
     """Return the a string representation of a datetime object (as IS08601)."""
     return dt.isoformat()
 
+
+def is_numerical(item):
+    """Check if the argument is numerical."""
+    if isinstance(item, float):
+        return True
+    if isinstance(item, int):
+        return True
+    try:
+        # Cover other numerical types as Pandas (i.e. int64), Postgres (Decimal) etc.
+        item + 1
+        return True
+    except:
+        return False
