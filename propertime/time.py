@@ -2,6 +2,7 @@
 """Time classes"""
 
 import pytz
+from datetime import datetime
 from dateutil.tz.tz import tzoffset
 from .utils import timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt
 
@@ -13,46 +14,98 @@ logger = logging.getLogger(__name__)
 class Time(float):
 
     def __new__(cls, value=None, *args, **kwargs):
-        
-        from_seconds = False
-        from_string = False
-        
-        # Handle value
+
+        embedded_tz = None
+        embedded_offset = None
+
+        # Handle value as datetime
+        if isinstance(value, datetime):
+
+            # Handle naive datetime if it is the case
+            if not value.tzinfo:
+
+                # Look at the tz argument if any, and decorate
+                if kwargs.get('tz', None):
+                    value = timezonize(kwargs.get('tz')).localize(value)
+
+                # Look at the offset argument if any, and decorate
+                elif kwargs.get('offset', None):
+                    value = pytz.UTC.localize(value).replace(tzinfo = tzoffset(None, kwargs.get('offset')))
+
+                # Otherwise, treat as UTC
+                else:
+                    value = pytz.UTC.localize(value)
+
+            # Now convert the (always timezone-aware) datetime
+            if isinstance(value.tzinfo, tzoffset):
+                embedded_offset = value.utcoffset().seconds
+            else:
+                embedded_tz = value.tzinfo
+            value = s_from_dt(value)
+
+        # Handle value as string
         if isinstance(value, str):
-            value = s_from_dt(dt_from_str(value))
-            from_string = True
-        
+
+            # Handle naive string if it is the case
+            if not (value[-1] == 'Z' or '+' in value or '-' in value.split('T')[1]):
+
+                # Look at the tz argument if any, and use it
+                if kwargs.get('tz', None):    
+                    converted_dt = dt_from_str(value, tz=timezonize(kwargs.get('tz')))
+
+                # Look at the offset argument if any, and use it
+                elif kwargs.get('offset', None):
+                    converted_dt = dt_from_str(value, tz=tzoffset(None, kwargs.get('offset')))
+
+                # Otherwise, treat as UTC
+                else:
+                    converted_dt = dt_from_str(value+'Z')
+
+            else:
+                converted_dt = dt_from_str(value)
+
+            # Now convert the (always offset-aware) datetime converted from the string
+            value = s_from_dt(converted_dt)
+
+
+        # Handle no value -> current time
         elif value is None:
             value = now_s()
-            from_seconds = True
-            
+
         else:
-            from_seconds = True
+            # TODO: check float-compatible value type?
+            #try:
+            #    float(value)
+            #except:
+            #    raise ValueError('Cannot convert to float')
+            pass
 
         # Create the new instance
         time_instance = super().__new__(cls, value)
         
-        # Handle time zone & offset
-        tz = kwargs.get('tz', None)
-        offset = kwargs.get('offset', None)
-        
-        if tz:
+        # Handle time zone & offset arguments. Can override "value" (string/datetime) ones.
+        given_tz = timezonize(kwargs.get('tz', None))
+        given_offset = kwargs.get('offset', None)
+
+        if given_tz or (embedded_tz and not given_offset):
+
+            # Set time zone, and also the offset
+            tz = given_tz if given_tz else embedded_tz
             time_instance._tz = timezonize(tz)
-            if from_seconds:  
-                _dt = dt_from_s(value, tz=time_instance._tz)
-                sign = -1 if _dt.utcoffset().days < 0 else 1 
-                time_instance._offset = sign * _dt.utcoffset().seconds
-            elif from_string:
-                _dt = dt_from_s(value, tz=time_instance._tz)
-                sign = -1 if _dt.utcoffset().days < 0 else 1 
-                time_instance._offset = sign * _dt.utcoffset().seconds                
-                
-        elif offset:
-            if from_string:
-                raise ValueError('Cannot manually set an offset if initializing time from a string. Use the ISO notation.')
-            time_instance._offset = offset
+            _dt = dt_from_s(value, tz=time_instance._tz)
+            sign = -1 if _dt.utcoffset().days < 0 else 1 
+            time_instance._offset = sign * _dt.utcoffset().seconds
+
+        elif given_offset or (embedded_offset and not given_tz):
+
+            # Set only the offset
+            offset = given_offset if given_offset else embedded_offset
             time_instance._tz = None
+            time_instance._offset = offset
+
         else:
+
+            # Otherwise, default to UTC
             time_instance._tz = pytz.UTC
             time_instance._offset = 0
         
@@ -126,3 +179,5 @@ class Time(float):
         else:
             return ('Time: {} ({}.{} {})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), decimal_part, tz_or_offset))
 
+    def __repr__(self):
+        return self.__str__()

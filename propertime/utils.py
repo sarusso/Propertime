@@ -12,7 +12,7 @@ UTC = pytz.UTC
 
 def timezonize(tz):
     """Convert a string representation of a time zone to its pytz object, or
-    do nothing if the argument is already a pytz time zone or tzoffset."""
+    do nothing if the argument is already a pytz time zone or tzoffset or None"""
     
     # Checking if somthing is a valid pytz object is hard as it seems that they are spread around the pytz package.
     #
@@ -23,6 +23,9 @@ def timezonize(tz):
     # http://stackoverflow.com/questions/14570802/python-check-if-object-is-instance-of-any-class-from-a-certain-module
     #
     # Option 3) perform a hand-made test. We go for this one, tests would fail if something changes in this approach.
+    
+    if tz is None:
+        return tz
     
     if isinstance(tz,tzoffset):
         return tz
@@ -73,8 +76,8 @@ def now_dt(tz='UTC'):
 
 
 def dt(*args, **kwargs):
-    """Initialize a datetime object with the time zone in the proper way. Using the standard datetime initilization
-    leads to various problems if setting a pytz time zone. Also, it forces UTC time zone if no time zone is specified
+    """Initialize a datetime object with the time zone in the proper way. Using the standard
+    datetime initilization leads to various problems if setting a pytz time zone.
     
     Args:
         year(int): the year.
@@ -83,53 +86,49 @@ def dt(*args, **kwargs):
         hour(int): the hour, defaults to 0.
         minute(int): the minute, Defaults to 0.
         second(int): the second, Defaults to 0.
-        microsecond(int): the microsecond, Defaults to 0.
-        tz(tzinfo, pytz, str): the time zone, defaults to UTC.            
-        tzinfo(tzinfo,pytz,str): the time zone, defaults to UTC. here for extra compatibility.
-        offset_s(int,float): an optional offset in seconds.
+        microsecond(int): the microsecond, Defaults to None.
+        tz(tzinfo, pytz, str): the time zone, defaults to None.
+        offset_s(int,float): an optional offset, in seconds.
         trustme(bool): if to skip sanity checks. Defaults to False.
     """
-    
-    if 'tz' in kwargs:
-        tzinfo = kwargs.pop('tz')
-    else:
-        tzinfo = kwargs.pop('tzinfo', None)
-        
+
+    tz = kwargs.pop('tz', None)
     offset_s = kwargs.pop('offset_s', None)   
     trustme = kwargs.pop('trustme', False)
     strict = kwargs.pop('strict', False)
-    
+
     if kwargs:
         raise Exception('Unhandled arg: "{}".'.format(kwargs))
-        
-    if (tzinfo is None):
-        # Force UTC if None
-        timezone = timezonize('UTC')
-        
-    else:
-        timezone = timezonize(tzinfo)
+
+    if tz is not None:
+        tz = timezonize(tz)
+
+    if offset_s is not None:
     
-    if offset_s:
-        # Special case for the offset
-        from dateutil.tz import tzoffset
-        if not tzoffset:
-            raise Exception('For ISO date with offset please install dateutil')
+        # Special case for the offset in seconds
         time_dt = datetime.datetime(*args, tzinfo=tzoffset(None, offset_s))
+
     else:
-        # Standard  time zone
-        naive_time_dt = datetime.datetime(*args)
-        time_dt = timezone.localize(naive_time_dt)
-        if not trustme and timezone != UTC:
+
+        # Standard time zone or tzoffset
+        if not tz:
+            time_dt = datetime.datetime(*args)
+        elif isinstance(tz, tzoffset):
+            time_dt = datetime.datetime(*args, tzinfo=tz)
+        else:     
+            time_dt = tz.localize(datetime.datetime(*args))
+        
+        if not trustme and tz and tz != UTC:
             if is_dt_ambiguous_without_offset(time_dt):
                 if strict:
-                    raise ValueError('Sorry, time {} is ambiguous on time zone {} without an offset'.format(naive_time_dt, timezone))
+                    raise ValueError('Sorry, time {} is ambiguous on time zone {} without an offset'.format(time_dt, tz))
                 else:
-                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(naive_time_dt, timezone, time_dt.utcoffset()))
+                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(time_dt, tz, time_dt.utcoffset()))
 
     # Check consistency    
-    if not trustme and timezone != UTC:
+    if not trustme and tz and tz != UTC:
         if is_dt_inconsistent(time_dt):
-            raise ValueError('Sorry, time {} does not exist on time zone {}'.format(time_dt, timezone))
+            raise ValueError('Sorry, time {} does not exist on time zone {}'.format(time_dt, tz))
     
     return time_dt
 
@@ -156,7 +155,7 @@ def correct_dt_dst(dt_obj):
               dt_obj.minute,
               dt_obj.second,
               dt_obj.microsecond,
-              tzinfo=dt_obj.tzinfo)
+              tz=dt_obj.tzinfo)
 
 
 def as_tz(dt, tz):
@@ -166,6 +165,8 @@ def as_tz(dt, tz):
         dt(datetime): the datetime object.
         tz(tzinfo,pytz,str): the time zone.
     """
+    if dt.tzinfo is None:
+        raise ValueError('Cannot get naive datetimes as if on other time zones')
     return dt.astimezone(timezonize(tz))
 
 
@@ -183,11 +184,16 @@ def dt_from_s(s, tz='UTC'):
     return timestamp_dt
 
 
-def s_from_dt(dt):
+def s_from_dt(dt, tz=None):
     """Return the epoch seconds from a datetime object, with floating point for milliseconds/microseconds."""
     if not (isinstance(dt, datetime.datetime)):
         raise Exception('t_from_dt function called without datetime argument, got type "{}" instead.'.format(dt.__class__.__name__))
     try:
+        if dt.tzinfo is None and tz is None:
+            raise ValueError('Cannot convert to epoch seconds naive datetimes')
+        elif tz is not None:
+            tz = timezonize(tz)
+            dt = tz.localize(dt)
         # This is the only safe approach. Some versions of Python around 3.4.4 - 3.7.3
         # get the datetime.timestamp() wrong and compute seconds on local time zone.
         microseconds_part = (dt.microsecond/1000000.0) if dt.microsecond else 0
@@ -199,7 +205,7 @@ def s_from_dt(dt):
         return dt.timestamp()
 
 
-def dt_from_str(string, tz='UTC'):
+def dt_from_str(string, tz=None):
     """Create a datetime object from a string.
 
     This is a basic IS08601, see https://www.w3.org/TR/NOTE-datetime
@@ -213,7 +219,7 @@ def dt_from_str(string, tz='UTC'):
         4) YYYY-MM-DDThh:mm:ss.{u}+ZZ:ZZ
 
     Other supported formats:
-        5) YYYY-MM-DDThh:mm:ss (without the trailing Z, and assume it on UTC)
+        5) YYYY-MM-DDThh:mm:ss (without the trailing Z, treated as naive)
     """
 
     # Split and parse standard part
@@ -222,29 +228,27 @@ def dt_from_str(string, tz='UTC'):
     elif ' ' in string:
         date, time = string.split(' ')
     else:
-        raise ValueError('Cannot find andy date/time separator (looking for "T" or " " in "{}"'.format(string))
+        raise ValueError('Cannot find any date/time separator (looking for "T" or " " in "{}"'.format(string))
         
-    
+    # UTC
     if time.endswith('Z'):
-        # UTC
+        tz='UTC'
         offset_s = 0
         time = time[:-1]
-        
+    
+    # Positive offset
     elif ('+') in time:
-        # Positive offset
         time, offset = time.split('+')
-        # Set time and extract positive offset
         offset_s = (int(offset.split(':')[0])*60 + int(offset.split(':')[1]) )* 60   
-        
+    
+    # Negative offset
     elif ('-') in time:
-        # Negative offset
         time, offset = time.split('-')
-        # Set time and extract negative offset
         offset_s = -1 * (int(offset.split(':')[0])*60 + int(offset.split(':')[1])) * 60      
     
-    else:
-        # Assume UTC
-        offset_s = 0
+    # Naive
+    else:  
+        offset_s = None
     
     # Handle time
     hour, minute, second = time.split(':')
