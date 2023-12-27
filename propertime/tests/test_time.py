@@ -126,13 +126,14 @@ class TestTime(unittest.TestCase):
         # Time from string with an offset on UTC
         time = Time('1986-08-01T16:46:00+00:00')
         self.assertEqual(time, 523298760.0)
-        self.assertEqual(str(time.tz), 'UTC')
         self.assertEqual(time.offset, 0)
+        self.assertEqual(time.tz, None)
 
         # Time from string with a different offset
-        time = Time('1986-08-01T16:46:00+02:00')
-        self.assertEqual(time, 523291560.0)
-        self.assertEqual(str(time.tz), 'UTC')
+        time = Time('2023-12-25T16:12:00+01:00')
+        self.assertEqual(time, 1703517120.0)
+        self.assertEqual(time.offset, 3600)
+        self.assertEqual(time.tz, None)
 
         # Time from naive string with time zone as argument
         # Expected behavior: treat as on the given time zone

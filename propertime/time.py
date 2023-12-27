@@ -64,6 +64,12 @@ class Time(float):
             else:
                 converted_dt = dt_from_str(value)
 
+                # Handle embedded time zone (only Zulu, which is UTC) or offset 
+                if value[-1] == 'Z':
+                    embedded_tz = pytz.UTC
+                else:
+                    embedded_offset = converted_dt.utcoffset().seconds
+
             # Now convert the (always offset-aware) datetime converted from the string
             value = s_from_dt(converted_dt)
 
@@ -87,7 +93,7 @@ class Time(float):
         given_tz = timezonize(kwargs.get('tz', None))
         given_offset = kwargs.get('offset', None)
 
-        if given_tz or (embedded_tz and not given_offset):
+        if given_tz or (embedded_tz is not None and given_offset is None):
 
             # Set time zone, and also the offset
             tz = given_tz if given_tz else embedded_tz
@@ -96,7 +102,7 @@ class Time(float):
             sign = -1 if _dt.utcoffset().days < 0 else 1 
             time_instance._offset = sign * _dt.utcoffset().seconds
 
-        elif given_offset or (embedded_offset and not given_tz):
+        elif given_offset is not None or (embedded_offset is not None and not given_tz):
 
             # Set only the offset
             offset = given_offset if given_offset else embedded_offset
