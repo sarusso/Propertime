@@ -7,7 +7,8 @@ import pytz
 from datetime import datetime, timedelta
 from dateutil.tz.tz import tzoffset
 from .utils import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
-                   get_tz_offset, is_numerical, is_dt_inconsistent, correct_dt_dst
+                   get_tz_offset, is_numerical, is_dt_inconsistent, is_dt_ambiguous_without_offset, \
+                   correct_dt_dst
 from .exceptions import ConsistencyError
 
 # Setup logging
@@ -19,6 +20,9 @@ class Time(float):
 
     def __new__(cls, value=None, *args, **kwargs):
 
+        can_guess = kwargs.pop('can_guess', False)
+        given_tz = timezonize(kwargs.pop('tz', None))
+        given_offset = kwargs.pop('offset', None)
         embedded_tz = None
         embedded_offset = None
 
@@ -29,12 +33,12 @@ class Time(float):
             if not value.tzinfo:
 
                 # Look at the tz argument if any, and decorate
-                if kwargs.get('tz', None):
-                    value = timezonize(kwargs.get('tz')).localize(value)
+                if given_tz:
+                    value = timezonize(given_tz).localize(value)
 
                 # Look at the offset argument if any, and decorate
-                elif kwargs.get('offset', None):
-                    value = pytz.UTC.localize(value).replace(tzinfo = tzoffset(None, kwargs.get('offset')))
+                elif given_offset is not None:
+                    value = pytz.UTC.localize(value).replace(tzinfo = tzoffset(None, given_offset))
 
                 # Otherwise, treat as UTC
                 else:
@@ -54,12 +58,12 @@ class Time(float):
             if not (value[-1] == 'Z' or '+' in value or ('-' in value and '-' in value.split('T')[1])):
 
                 # Look at the tz argument if any, and use it
-                if kwargs.get('tz', None):    
-                    converted_dt = dt_from_str(value, tz=timezonize(kwargs.get('tz')))
+                if given_tz:
+                    converted_dt = dt_from_str(value, tz=given_tz)
 
                 # Look at the offset argument if any, and use it
-                elif kwargs.get('offset', None):
-                    converted_dt = dt_from_str(value, tz=tzoffset(None, kwargs.get('offset')))
+                elif given_offset is not None:
+                    converted_dt = dt_from_str(value, tz=tzoffset(None, given_offset))
 
                 # Otherwise, treat as UTC
                 else:
@@ -86,15 +90,20 @@ class Time(float):
             # Detect classic datetime-like init
             if len(args) > 0:
 
-                tz_or_offset = timezonize(kwargs.get('tz')) if timezonize(kwargs.get('tz', None)) else kwargs.get('offset', None)
+                if given_tz:
+                    # Time zone, set, check if also the offset was
+                    if given_offset is not None:
+                        value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), can_guess=can_guess).astimezone(given_tz))
+                    else:
+                        value = s_from_dt(dt(value, *args, tz=given_tz, can_guess=can_guess))
 
-                if isinstance(tz_or_offset, int):
-                    tz_or_offset = tzoffset(None, tz_or_offset)
+                elif given_offset is not None:
+                    # Offset set
+                    value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), can_guess=can_guess))
 
-                if not tz_or_offset:
-                    tz_or_offset = 'UTC'
-
-                value = s_from_dt(dt(value, *args, tz=tz_or_offset))
+                else:
+                    # Nothing set, treat as UTC
+                    value = s_from_dt(dt(value, *args, tz='UTC', can_guess=can_guess))
 
             else:
                 # Check float-compatible value type
@@ -107,9 +116,6 @@ class Time(float):
         time_instance = super().__new__(cls, value)
 
         # Handle time zone & offset arguments. Can override "value" (string/datetime) ones.
-        given_tz = timezonize(kwargs.pop('tz', None))
-        given_offset = kwargs.pop('offset', None)
-
         if kwargs:
             raise ValueError('Unhandled kwargs: {}'.format(kwargs))
 
@@ -125,7 +131,7 @@ class Time(float):
         elif given_offset is not None or (embedded_offset is not None and not given_tz):
 
             # Set only the offset
-            offset = given_offset if given_offset else embedded_offset
+            offset = given_offset if given_offset is not None else embedded_offset
             time_instance._tz = None
             time_instance._offset = offset
 
@@ -193,6 +199,7 @@ class Time(float):
         if self.tz:
             tz_or_offset = self.tz
         else:
+            # TODO: move to a _get_utc_offset() support function. Used also in dt().
             iso_time_part = self.iso().split('T')[1]
             if '+' in iso_time_part:
                 tz_or_offset = '+'+iso_time_part.split('+')[1]
@@ -694,7 +701,7 @@ class TimeUnit:
                 try:
                     time_shifted_dt = time_shifted_dt.replace(month=new_month)
                 except ValueError as e:
-                    raise ValueError('Error: {} for {} plus {} month(s)'.format(e, time_shifted_dt, self.months))
+                    raise ValueError('{} for {} plus {} month(s)'.format(e, time_shifted_dt, self.months).capitalize())
 
             # Check DST offset consistency and fix if not respected
             if is_dt_inconsistent(time_shifted_dt):
@@ -707,9 +714,14 @@ class TimeUnit:
                     # probably by adding a calendar time unit to a previous datetime
                     raise ValueError('Cannot shift "{}" by "{}" ({})'.format(time_dt,self,e)) from None
 
+            # Check if we ended up on an ambiguous time
+            if is_dt_ambiguous_without_offset(time_shifted_dt):
+                time_shifted_dt_naive =  time_shifted_dt.replace(tzinfo=None)
+                raise ValueError('Cannot shift "{}" by "{}" (Would end up on time {} which is ambiguous on time zone {})'.format(time_dt,self,time_shifted_dt_naive, time_shifted_dt.tzinfo)) from None
+
         # Handle other cases (Consistency error)
         else:
-            raise ConsistencyError('Error, TimeSlot type not physical nor calendar?!')
+            raise ConsistencyError('Consistency error: TimeSlot type not physical nor calendar?!')
 
         # Return
         if isinstance(time, Time):
@@ -756,45 +768,4 @@ class TimeUnit:
             raise ConsistencyError('Unknown TimeUnit type "{}"'.format(self.type))
 
         return float(time_unit_s)
-
-    # Get start/end/center
-    def _get_start(self, end=None, center=None):
-        new_values = []
-        if end is not None:
-            for i in range(len(self.value)):
-                new_values.append(end.values[i] - self.value[i])
-            return end.__class__(labels=end.labels, values=new_values, tz=end.tz)
-        elif center is not None:
-            for i in range(len(self.value)):
-                new_values.append(center.values[i] - self.value[i]/2.0)
-            return center.__class__(labels=center.labels, values=new_values, tz=center.tz)
-        else:
-            raise ValueError('get_start: Got not end nor center')
-
-    def _get_end(self, start=None, center=None):
-        new_values = []
-        if start is not None:
-            for i in range(len(self.value)):
-                new_values.append(self.value[i] + start.values[i])
-            return start.__class__(labels=start.labels, values=new_values, tz=start.tz)
-        elif center is not None:
-            for i in range(len(self.value)):
-                new_values.append(center.values[i] + self.value[i]/2.0) 
-            return center.__class__(labels=center.labels, values=new_values, tz=center.tz) 
-        else:
-            raise ValueError('get_end: Got not end nor center')
-
-    def _get_center(self, start=None, end=None):
-        new_values = []
-        if start is not None:
-            for i in range(len(self.value)):
-                new_values.append(start.values[i] + self.value[i]/2.0)
-            return start.__class__(labels=start.labels, values=new_values, tz=start.tz)
-        elif end is not None:
-            for i in range(len(self.value)):
-                new_values.append(end.values[i] - self.value[i]/2.0) 
-            return end.__class__(labels=end.labels, values=new_values, tz=end.tz) 
-        else:
-            raise ValueError('get_center: Got not end not start') 
-
 

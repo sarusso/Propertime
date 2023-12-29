@@ -30,11 +30,17 @@ class TestTime(unittest.TestCase):
         time = Time(tz='Europe/Rome')
         self.assertEqual(str(time.tz), 'Europe/Rome')
 
-        # Time
+        # Time (UTC by default)
         time = Time(5.6)
         self.assertEqual(time, 5.6)
+        self.assertEqual(str(time.tz), 'UTC')
+        self.assertEqual(time.offset, 0)
 
         # Time with offset
+        time = Time(1702928535.0, offset=0)
+        self.assertEqual(time.tz, None)
+        self.assertEqual(time.offset, 0)
+
         time = Time(1702928535.0, offset=7200)
         self.assertEqual(time.tz, None)
         self.assertEqual(time.offset, 7200)
@@ -70,6 +76,31 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.dt()), '2023-12-01 00:00:00+01:00')
         self.assertEqual(time.tz, None)
 
+        # Time with datetime-like arguments with both time zone and offset as arguments
+        # Expected behavior: get on UTC given the offset and then treat as on the given time zone
+
+        time = Time(2023, 6, 11, 17, 56, 0, offset=0, tz='UTC')
+        self.assertEqual(str(time.dt()), '2023-06-11 17:56:00+00:00')
+        self.assertEqual(str(time.tz), 'UTC')
+        self.assertEqual(time.offset, 0)
+
+        time = Time(2023, 6, 11, 17, 56, 0, offset=7200, tz='Europe/Rome')
+        self.assertEqual(str(time.dt()), '2023-06-11 17:56:00+02:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 7200)
+
+        # TODO: do we want this? Or do we want to ensure offset compatible with time zone?
+        time = Time(2023, 6, 11, 17, 56, 0, offset=0, tz='Europe/Rome') # 17:56 UTC
+        self.assertEqual(str(time.dt()), '2023-06-11 19:56:00+02:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 7200)
+
+        # TODO: do we want this? Or do we want to ensure offset compatible with time zone?
+        time = Time(2023, 6, 11, 17, 56, 0, offset=10800, tz='Europe/Rome') # 14:56 UTC
+        self.assertEqual(str(time.dt()), '2023-06-11 16:56:00+02:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 7200)
+
         # Time from naive datetime (assumed as UTC)
         time = Time(dt(2023,12,3,16,12,0))
         self.assertEqual(time, 1701619920.0)
@@ -77,14 +108,14 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.tz), 'UTC')
 
         # Time from naive datetime with time zone as argument
-        # Expected behavior: treat as on the given time zone
+        # Expected behavior: treat as if on the given time zone
         time = Time(datetime(2023,12,3,16,12,0), tz='Europe/Rome')
         self.assertEqual(time, 1701616320.0)
         self.assertEqual(str(time.dt()), '2023-12-03 16:12:00+01:00')
         self.assertEqual(str(time.tz), 'Europe/Rome')
 
         # Time from naive datetime with offset as argument
-        # Expected behavior: treat as with the given offset
+        # Expected behavior: treat as if with the given offset
         time = Time(datetime(2023,12,3,16,12,0), offset=3600)
         self.assertEqual(time, 1701616320.0)
         self.assertEqual(str(time.dt()), '2023-12-03 16:12:00+01:00')
@@ -135,6 +166,20 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.tz), 'UTC')
         self.assertEqual(time.offset, 0)
 
+        # Time from naive string with an extra (zero) offset
+        # Expected behavior: treat as if with the given offset
+        time = Time('2023-06-11T17:56:00', offset=0)
+        self.assertEqual(time, 1686506160.0)
+        self.assertEqual(time.tz, None)
+        self.assertEqual(time.offset, 0)
+
+        # Time from naive string with an extra offset
+        # Expected behavior: treat as if with the given offset
+        time = Time('2023-06-11T17:56:00', offset=3600)
+        self.assertEqual(time, 1686502560.0)
+        self.assertEqual(time.tz, None)
+        self.assertEqual(time.offset, 3600)
+
         # Time from string with a string on Zulu time
         time = Time('1986-08-01T16:46:00Z')
         self.assertEqual(time, 523298760.0)
@@ -179,6 +224,31 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.tz), 'America/New_York')
         self.assertEqual(time.offset, -72000)
 
+        # Time from string with an offset and both an extra offset and time zone as arguments
+        # Expected behavior: get on UTC given the offset and then treat as on the given time zone
+
+        time = Time('2023-06-11T17:56:00+00:00', offset=0, tz='UTC')
+        self.assertEqual(str(time.dt()), '2023-06-11 17:56:00+00:00')
+        self.assertEqual(str(time.tz), 'UTC')
+        self.assertEqual(time.offset, 0)
+
+        time = Time('2023-06-11T17:56:00+00:00', offset=7200, tz='Europe/Rome')
+        self.assertEqual(str(time.dt()), '2023-06-11 19:56:00+02:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 7200)
+
+        # TODO: do we want this? Or do we want to ensure offset compatible with time zone?
+        time = Time('2023-06-11T17:56:00+00:00', offset=0, tz='Europe/Rome') # 17:56 UTC
+        self.assertEqual(str(time.dt()), '2023-06-11 19:56:00+02:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 7200)
+
+        # TODO: do we want this? Or do we want to ensure offset compatible with time zone?
+        time = Time('2023-06-11T17:56:00+03:00', offset=10800, tz='Europe/Rome') # 14:56 UTC
+        self.assertEqual(str(time.dt()), '2023-06-11 16:56:00+02:00')
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 7200)
+
         # Invalid init string
         with self.assertRaises(ValueError):
             Time('aaa')
@@ -186,6 +256,35 @@ class TestTime(unittest.TestCase):
         # Unknown init type
         with self.assertRaises(ValueError):
             Time({})
+
+        # Not existent time
+        with self.assertRaises(ValueError):
+            Time(2023,3,26,2,15,0, tz='Europe/Rome')
+
+        # Ambiguous time
+        with self.assertRaises(ValueError):
+            Time(2023,10,29,2,15,0, tz='Europe/Rome')
+
+        # Ambiguous time with guessing enabled (just raises a warning)
+        time = Time(2023,10,29,2,15,0, tz='Europe/Rome', can_guess=True)
+        self.assertEqual(str(time), 'Time: 1698542100.0 (2023-10-29 02:15:00 Europe/Rome)')
+        self.assertEqual(time.iso(), '2023-10-29T02:15:00+01:00')
+
+        # Ambiguous time with offset OK
+        time = Time(2023,10,29,2,15,0, offset=3600, tz='Europe/Rome')
+        self.assertEqual(str(time), 'Time: 1698542100.0 (2023-10-29 02:15:00 Europe/Rome)')
+        self.assertEqual(time.iso(), '2023-10-29T02:15:00+01:00')
+
+        time = Time(2023,10,29,2,15,0, offset=7200, tz='Europe/Rome')
+        self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome)')
+        self.assertEqual(time.iso(), '2023-10-29T02:15:00+02:00')
+
+        # Extra check for string init on ambiguous time (TODO: maybe move elsewhere?)
+        time = Time('2023-10-29T02:15:00+01:00', tz='Europe/Rome')
+        self.assertEqual(str(time), 'Time: 1698542100.0 (2023-10-29 02:15:00 Europe/Rome)')
+
+        time = Time('2023-10-29T02:15:00+02:00', tz='Europe/Rome')
+        self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome)')
 
 
     def test_string_representation(self):
@@ -203,7 +302,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:46:00 +01:00)')
 
         # Negative offset
-        time = Time(1702928535.0, offset=-68400)   
+        time = Time(1702928535.0, offset=-68400)
         self.assertEqual(str(time), 'Time: 1702928535.0 (2023-12-18 00:42:15 -19:00)')
 
         # Offset non-hourly and sub-second
@@ -451,8 +550,8 @@ class TestTimeUnits(unittest.TestCase):
         time_unit = TimeUnit('1M')
         with self.assertRaises(ValueError):
             time_unit.as_seconds()
-        self.assertEqual(time_unit.as_seconds(datetime1), ((86400*31)+3600)) # October has 31 days, but here we have a DST change in the middle
-        self.assertEqual(time_unit.as_seconds(datetime3), (86400*31)) # October has 31 days
+        self.assertEqual(time_unit.as_seconds(datetime3), (86400*31)) # October has 31 days so next month same day has 31 full days
+        self.assertEqual(time_unit.as_seconds(datetime1), ((86400*31)+3600)) # Same as above, but in this case we have a DST change in the middle
 
         # Year Unit
         time_unit = TimeUnit('1Y')
@@ -476,6 +575,16 @@ class TestTimeUnits(unittest.TestCase):
         self.assertEqual(time_unit.shift(datetime1), dt(2015,10,25,0,15,0, tz='Europe/Rome')) # No DST, standard day
         self.assertEqual(time_unit.shift(datetime2), dt(2015,10,26,0,15,0, tz='Europe/Rome')) # DST, change
 
+        # Day unit on not-existent hour due to DST
+        starting_dt = dt(2023,3,25,2,15, tz='Europe/Rome')
+        with self.assertRaises(ValueError):
+            starting_dt + TimeUnit('1D')
+
+        # Day unit on ambiguous hour due to DST
+        starting_dt = dt(2023,10,28,2,15, tz='Europe/Rome')
+        with self.assertRaises(ValueError):
+            starting_dt + TimeUnit('1D')
+
         # Week unit
         time_unit = TimeUnit('1W')
         self.assertEqual(time_unit.shift(datetime1), dt(2015,10,31,0,15,0, tz='Europe/Rome'))
@@ -495,10 +604,6 @@ class TestTimeUnits(unittest.TestCase):
         time_unit = TimeUnit('1Y')
         self.assertEqual(time_unit.shift(datetime1), dt(2016,10,24,0,15,0, tz='Europe/Rome'))
 
-        # Test on not-existent hour due to DST
-        starting_dt = dt(2023,3,25,2,15, tz='Europe/Rome')
-        with self.assertRaises(ValueError):
-            starting_dt + TimeUnit('1D')
 
     def test_TimeUnit_operations(self):
 
@@ -621,9 +726,6 @@ class TestTimeUnits(unittest.TestCase):
         self.assertEqual(time_unit.floor(datetime1), datetime1_floor)
         self.assertEqual(time_unit.ceil(datetime1), datetime1_ceil)
 
-        # Week unit
-        # TODO: not implemented...
-
         # Year unit
         time_unit = TimeUnit('1Y')
 
@@ -633,5 +735,4 @@ class TestTimeUnits(unittest.TestCase):
 
         self.assertEqual(time_unit.floor(datetime1), datetime1_floor)
         self.assertEqual(time_unit.ceil(datetime1), datetime1_ceil)
-
 

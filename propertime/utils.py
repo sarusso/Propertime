@@ -60,6 +60,11 @@ def is_dt_ambiguous_without_offset(dt):
     dt_minus_one_hour_via_UTC = UTC.localize(datetime.datetime.utcfromtimestamp(s_from_dt(dt)-3600)).astimezone(dt.tzinfo)
     if dt.hour == dt_minus_one_hour_via_UTC.hour:
         return True
+
+    dt_plus_one_hour_via_UTC = UTC.localize(datetime.datetime.utcfromtimestamp(s_from_dt(dt)+3600)).astimezone(dt.tzinfo)
+    if dt.hour == dt_plus_one_hour_via_UTC.hour:
+        return True
+
     return False
 
 
@@ -95,7 +100,7 @@ def dt(*args, **kwargs):
     tz = kwargs.pop('tz', None)
     offset_s = kwargs.pop('offset_s', None)   
     trustme = kwargs.pop('trustme', False)
-    strict = kwargs.pop('strict', False)
+    can_guess = kwargs.pop('can_guess', False)
 
     if kwargs:
         raise Exception('Unhandled arg: "{}".'.format(kwargs))
@@ -108,6 +113,10 @@ def dt(*args, **kwargs):
         # Special case for the offset in seconds
         time_dt = datetime.datetime(*args, tzinfo=tzoffset(None, offset_s))
 
+        # And get it on the required time zone if any
+        if tz:
+            time_dt = as_tz(time_dt, tz)
+
     else:
 
         # Standard time zone or tzoffset
@@ -115,20 +124,28 @@ def dt(*args, **kwargs):
             time_dt = datetime.datetime(*args)
         elif isinstance(tz, tzoffset):
             time_dt = datetime.datetime(*args, tzinfo=tz)
-        else:     
+        else:
             time_dt = tz.localize(datetime.datetime(*args))
 
         if not trustme and tz and tz != UTC:
             if is_dt_ambiguous_without_offset(time_dt):
-                if strict:
-                    raise ValueError('Sorry, time {} is ambiguous on time zone {} without an offset'.format(time_dt, tz))
+                time_dt_naive = time_dt.replace(tzinfo=None)
+                if not can_guess:
+                    raise ValueError('Sorry, time {} is ambiguous on time zone {} without an offset'.format(time_dt_naive, tz))
                 else:
-                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(time_dt, tz, time_dt.utcoffset()))
+                    # TODO: move to a _get_utc_offset() support function. Used also in Time __str__.
+                    iso_time_part = str_from_dt(time_dt).split('T')[1]
+                    if '+' in iso_time_part:
+                        offset_assumed = '+'+iso_time_part.split('+')[1]
+                    else:
+                        offset_assumed = '-'+iso_time_part.split('-')[1]
+                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(time_dt_naive, tz, offset_assumed))
 
-    # Check consistency    
+    # Check consistency
     if not trustme and tz and tz != UTC:
         if is_dt_inconsistent(time_dt):
-            raise ValueError('Sorry, time {} does not exist on time zone {}'.format(time_dt, tz))
+            time_dt_naive = time_dt.replace(tzinfo=None)
+            raise ValueError('Sorry, time {} does not exist on time zone {}'.format(time_dt_naive, tz))
 
     return time_dt
 

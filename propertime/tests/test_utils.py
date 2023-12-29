@@ -3,7 +3,8 @@
 import unittest
 import datetime
 import pytz
-from ..utils import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize
+from ..utils import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, \
+                    is_dt_ambiguous_without_offset
 from ..time import Time
 from dateutil.tz.tz import tzoffset
 
@@ -49,11 +50,15 @@ class TestUtils(unittest.TestCase):
         with self.assertRaises(ValueError):
             dt(2015,3,29,2,15,0, tz='Europe/Rome')
 
-        # Ambiguous time raises (if strict, otherwise it just issues a warning) 
+        # Ambiguous time
         with self.assertRaises(ValueError):
-            dt(2015,10,25,2,15,0, tz='Europe/Rome', strict=True)
+            dt(2015,10,25,2,15,0, tz='Europe/Rome')
 
-        # Not existent time does not raises   
+        # Ambiguous time with guessing enabled (just raises a warning)
+        date_time = dt(2015,10,25,2,15,0, tz='Europe/Rome', can_guess=True)
+        self.assertEqual(str(date_time), '2015-10-25 02:15:00+01:00')
+
+        # Not existent time does not raises
         date_time = dt(2015,3,29,2,15,0, tz='Europe/Rome', trustme=True)
         self.assertEqual(date_time.year, 2015)
         self.assertEqual(date_time.month, 3)
@@ -116,10 +121,10 @@ class TestUtils(unittest.TestCase):
         # To ISO on UTC, offset is 0.
         self.assertEqual(str_from_dt(dt(1986,8,1,16,46, tz='UTC')), '1986-08-01T16:46:00+00:00')
 
-        # To ISO on Europe/Rome, without DST, offset is +1. 
+        # To ISO on Europe/Rome, without DST, offset is +1.
         self.assertEqual(str_from_dt(dt(1986,12,1,16,46, tz='Europe/Rome')), '1986-12-01T16:46:00+01:00')
 
-        # To ISO on Europe/Rome, with DST, offset is +2.        
+        # To ISO on Europe/Rome, with DST, offset is +2.
         self.assertEqual(str_from_dt(dt(1986,8,1,16,46, tz='Europe/Rome')), '1986-08-01T16:46:00+02:00')
 
         # From ISO on UTC
@@ -140,7 +145,51 @@ class TestUtils(unittest.TestCase):
         # From ISO on offset -07:00
         self.assertEqual(str(dt_from_str('1986-08-01T16:46:00-07:00')), '1986-08-01 16:46:00-07:00')
 
+        # From ISO with a time zone set (tricky one, but correct)
+        self.assertEqual(str(dt_from_str('2023-03-26 02:15:00+01:00', tz='Europe/Rome')), '2023-03-26 03:15:00+02:00')
+
 
     def test_as_tz(self):
         self.assertEqual(str(as_tz(dt_from_str('1986-08-01T16:46:00.362752+02:00'), 'UTC')), '1986-08-01 14:46:00.362752+00:00')
+
+
+    def test_is_dt_ambiguous_without_offset(self):
+
+        # Time zone: Europe/Rome. Expected results:
+        # date_time_1 = 2023-10-29 01:15:00+02:00 -> False
+        # date_time_2 = 2023-10-29 02:15:00+02:00 -> True
+        # date_time_3 = 2023-10-29 02:15:00+01:00 -> True
+        # date_time_4 = 2023-10-29 03:15:00+01:00 -> False
+        start_epoch_s = s_from_dt(timezonize('UTC').localize(datetime.datetime(2023,10,28,23,15,0)))
+
+        date_time_1 = dt_from_s(start_epoch_s, tz='Europe/Rome')
+        self.assertFalse(is_dt_ambiguous_without_offset(date_time_1))
+
+        date_time_2 = dt_from_s(start_epoch_s+3600, tz='Europe/Rome')
+        self.assertTrue(is_dt_ambiguous_without_offset(date_time_2))
+
+        date_time_3 = dt_from_s(start_epoch_s+3600*2, tz='Europe/Rome')
+        self.assertTrue(is_dt_ambiguous_without_offset(date_time_3))
+
+        date_time_4 = dt_from_s(start_epoch_s+3600*3, tz='Europe/Rome')
+        self.assertFalse(is_dt_ambiguous_without_offset(date_time_4))
+
+        # Time zone: America/New_York. Expected results:
+        # date_time_1 = 2023-11-05 00:15:00-04:00 -> False
+        # date_time_2 = 2023-11-05 01:15:00-04:00 -> True
+        # date_time_3 = 2023-11-05 01:15:00-05:00 -> True
+        # date_time_4 = 2023-11-05 02:15:00-05:00 -> False
+        start_epoch_s = s_from_dt(timezonize('UTC').localize(datetime.datetime(2023,11,5,4,15,0)))
+
+        date_time_1 = dt_from_s(start_epoch_s, tz='America/New_York')
+        self.assertFalse(is_dt_ambiguous_without_offset(date_time_1))
+
+        date_time_2 = dt_from_s(start_epoch_s+3600, tz='America/New_York')
+        self.assertTrue(is_dt_ambiguous_without_offset(date_time_2))
+
+        date_time_3 = dt_from_s(start_epoch_s+3600*2, tz='America/New_York')
+        self.assertTrue(is_dt_ambiguous_without_offset(date_time_3))
+
+        date_time_4 = dt_from_s(start_epoch_s+3600*3, tz='America/New_York')
+        self.assertFalse(is_dt_ambiguous_without_offset(date_time_4))
 
