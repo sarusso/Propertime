@@ -211,8 +211,8 @@ class Time(float):
 
 class TimeUnit:
     """A unit which can represent both physical (fixed) and calendar (variable) time units.
-    Can handle precision up to the microsecond and can be summed and subtracted with numerical
-    values, Python datetime objects, other TimeUnits, or TimePoints.
+    Can handle precision up to the microsecond and can be added and subtracted with numerical
+    values, Time and datetime objects, and other TimeUnits.
 
     Can be initialized both using a numerical value, a string representation, or by explicitly setting
     years, months, weeks, days, hours, minutes, seconds and microseconds. In the string representation,
@@ -306,7 +306,7 @@ class TimeUnit:
 
         if string:
 
-            # Specific case for floating point seconds (TODO: improve me, maybe inlcude in the regex?)            
+            # Specific case for floating point seconds (TODO: improve me, maybe inlclude it in the regex?)
             if string.endswith('s') and '.' in string:
                 if '_' in string:
                     raise NotImplementedError('Composite TimeUnits with floating point seconds not yet implemented.')
@@ -321,7 +321,7 @@ class TimeUnit:
                     #raise ValueError('Sorry, "{}" has too many decimal seconds to be handled with a TimeUnit (which supports up to the microsecond).'.format(string))
 
                 # Add missing trailing zeros
-                missing_trailing_zeros = 6-len(decimal_seconds_str)                
+                missing_trailing_zeros = 6-len(decimal_seconds_str)
                 for _ in range(missing_trailing_zeros):
                     decimal_seconds_str += '0'
 
@@ -382,10 +382,10 @@ class TimeUnit:
         elif isinstance(other, datetime):
             if not other.tzinfo:
                 raise ValueError('Timezone of the datetime to sum with is required')
-            return self.shift_dt(other, times=1)
+            return self.shift(other, times=1)
 
         elif isinstance(other, Time):
-            return Time(self.shift_dt(other.dt(), times=1))
+            return Time(self.shift(other.dt(), times=1))
 
         elif is_numerical(other):
             return other + self.as_seconds()
@@ -404,10 +404,10 @@ class TimeUnit:
         elif isinstance(other, datetime):
             if not other.tzinfo:
                 raise ValueError('Timezone of the datetime to sum with is required')
-            return self.shift_dt(other, times=-1)
+            return self.shift(other, times=-1)
 
         elif isinstance(other, Time):
-            return Time(self.shift_dt(other.dt(), times=-1))
+            return Time(self.shift(other.dt(), times=-1))
 
         elif is_numerical(other):
             return other - self.as_seconds()
@@ -416,16 +416,16 @@ class TimeUnit:
             raise NotImplementedError('Subracting TimeUnits with objects of class "{}" is not implemented'.format(other.__class__.__name__))
 
     def __sub__(self, other):
-        raise NotImplementedError('Cannot subrtact anything from a TimeUnit. Only a TimeUnit from something else.')
+        raise NotImplementedError('Cannot subtract anything from a TimeUnit. Only a TimeUnit from something else.')
 
     def __truediv__(self, other):
-        raise NotImplementedError('Division for TimeUnits is not implemented yet')
+        raise NotImplementedError('Division for TimeUnits is not implemented')
 
     def __rtruediv__(self, other):
-        raise NotImplementedError('Division for TimeUnits is not implemented yet')
+        raise NotImplementedError('Division for TimeUnits is not implemented')
 
     def __mul__(self, other):
-        raise NotImplementedError('Multiplication for TimeUnits is not implemented yet')
+        raise NotImplementedError('Multiplication for TimeUnits is not implemented')
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -518,15 +518,20 @@ class TimeUnit:
         else:
             return False
 
-    def round_dt(self, time_dt, how = None):
-        """Round a datetime according to this TimeUnit."""
+    def round(self, time, how=None):
+        """Round a Time or datetime according to this TimeUnit."""
 
         if self._is_composite():
-            raise ValueError('Sorry, only simple TimeUnits are supported by the rebase operation')
+            raise ValueError('Sorry, only simple TimeUnits are supported by the round operation')
+
+        if isinstance(time, Time):
+            time_dt = time.dt()
+        else:
+            time_dt = time
 
         if not time_dt.tzinfo:
-            raise ValueError('The timezone of the datetime is required')    
-  
+            raise ValueError('The timezone of the Time or datetime is required')
+
         # Handle physical time 
         if self.type == self._PHYSICAL:
 
@@ -554,11 +559,10 @@ class TimeUnit:
                 time_rounded_s = time_ceil_s
 
             else:
-
                 distance_from_time_floor_s = abs(time_s - time_floor_s) # Distance from floor
                 distance_from_time_ceil_s  = abs(time_s - time_ceil_s)  # Distance from ceil
 
-                if distance_from_time_floor_s < distance_from_time_ceil_s:
+                if distance_from_time_floor_s <= distance_from_time_ceil_s:
                     time_rounded_s = time_floor_s
                 else:
                     time_rounded_s = time_ceil_s
@@ -571,56 +575,75 @@ class TimeUnit:
             if self.years:
                 if self.years > 1:
                     raise NotImplementedError('Cannot round based on calendar TimeUnits with years > 1')
-                rounded_dt=time_dt.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                floored_dt=time_dt.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
             if self.months:
                 if self.months > 1:
                     raise NotImplementedError('Cannot round based on calendar TimeUnits with months > 1')
-                rounded_dt=time_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                floored_dt=time_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
             if self.weeks:
                 # Get to this day midnight
-                rounded_dt = TimeUnit('1D').floor_dt(time_dt)
+                floored_dt = TimeUnit('1D').floor(time_dt)
 
                 # If not monday, subtract enought days to get there
-                if rounded_dt.weekday() != 0:
-                    rounded_dt = rounded_dt - timedelta(days=rounded_dt.weekday())
+                if floored_dt.weekday() != 0:
+                    floored_dt = floored_dt - timedelta(days=floored_dt.weekday())
 
             if self.days:
                 if self.days > 1:
                     raise NotImplementedError('Cannot round based on calendar TimeUnits with days > 1')
-                rounded_dt=time_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                floored_dt=time_dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
             # Check DST offset consistency and fix if not respected
-            if is_dt_inconsistent(rounded_dt):
-                rounded_dt = correct_dt_dst(rounded_dt)
+            if is_dt_inconsistent(floored_dt):
+                floored_dt = correct_dt_dst(floored_dt)
 
-            if how == 'ceil':
-                rounded_dt = self.shift_dt(rounded_dt, 1)
+            # Get the required rounding
+            if how == 'floor':
+                rounded_dt = floored_dt
+
+            elif how == 'ceil':
+                ceiled_dt = self.shift(floored_dt, 1)
+                rounded_dt = ceiled_dt
+
+            else:
+                ceiled_dt = self.shift(floored_dt, 1)
+                distance_from_time_floor_s = abs(s_from_dt(time_dt) - s_from_dt(floored_dt)) # Distance from floor
+                distance_from_time_ceil_s  = abs(s_from_dt(time_dt) - s_from_dt(ceiled_dt))  # Distance from ceil
+
+                if distance_from_time_floor_s <= distance_from_time_ceil_s:
+                    rounded_dt = floored_dt
+                else:
+                    rounded_dt = ceiled_dt
 
         # Handle other cases (Consistency error)
         else:
-            raise ConsistencyError('Error, TimeSlot type not physical nor calendar?!')
+            raise ConsistencyError('Error, TimeUnit type not Physical nor Calendar?!')
 
         # Return
-        return rounded_dt
+        if isinstance(time, Time):
+            return Time(rounded_dt)
+        else:
+            return rounded_dt
 
-    def floor_dt(self, time_dt):
-        """Floor a datetime according to this TimeUnit."""
-        return self.round_dt(time_dt, how='floor')
+    def floor(self, time):
+        """Floor a Time or datetime according to this TimeUnit."""
+        return self.round(time, how='floor')
 
-    def ceil_dt(self, time_dt):
-        """Ceil a datetime according to this TimeUnit."""
-        return self.round_dt(time_dt, how='ceil')
+    def ceil(self, time):
+        """Ceil a Time or datetime according to this TimeUnit."""
+        return self.round(time, how='ceil')
 
-    def rebase_dt(self, time_dt):
-        """Rebase a given datetime to this TimeUnit."""
-        return self.round_dt(time_dt, how='floor')
-
-    def shift_dt(self, time_dt, times=1):
-        """Shift a given datetime of n times of this TimeUnit."""
+    def shift(self, time, times=1):
+        """Shift a given Time or datetime n times this TimeUnit."""
         if self._is_composite():
-            raise ValueError('Sorry, only simple TimeUnits are supported by the rebase operation')
+            raise ValueError('Sorry, only simple TimeUnits are supported by the shift operation')
+ 
+        if isinstance(time, Time):
+            time_dt = time.dt()
+        else:
+            time_dt = time
  
         # Convert input time to seconds
         time_s = s_from_dt(time_dt)
@@ -634,13 +657,13 @@ class TimeUnit:
             time_shifted_s = time_s + ( time_unit_s * times )
             time_shifted_dt = dt_from_s(time_shifted_s, tz=time_dt.tzinfo)
 
-            return time_shifted_dt   
+            return time_shifted_dt
 
         # Handle calendar time TimeSlot
         elif self.type == self._CALENDAR:
 
             if times != 1:
-                raise NotImplementedError('Cannot shift calendar TimeUnits for times than 1 (got times="{}")'.format(times))
+                raise NotImplementedError('Cannot shift calendar TimeUnits for times greater than 1 (got times="{}")'.format(times))
 
             # Create a TimeDelta object for everything but years and months
             delta = timedelta(weeks = self.weeks,
@@ -650,7 +673,7 @@ class TimeUnit:
                               seconds = self.seconds,
                               microseconds = self.microseconds)
 
-            # Apply the time deta for the shif
+            # Apply the time delta for the shift
             time_shifted_dt = time_dt + delta
 
             # Handle years
@@ -689,24 +712,30 @@ class TimeUnit:
             raise ConsistencyError('Error, TimeSlot type not physical nor calendar?!')
 
         # Return
-        return time_shifted_dt   
+        if isinstance(time, Time):
+            return Time(time_shifted_dt)
+        else:
+            return time_shifted_dt
 
-    def as_seconds(self, start_dt=None):
+    def as_seconds(self, start=None):
         """The duration of the TimeUnit in seconds."""
+
+        if start and isinstance(start, Time):
+            start = start.dt()
 
         if self.type == self._CALENDAR:
 
-            if not start_dt:
+            if not start:
                 raise ValueError('You can ask to get a calendar TimeUnit as seconds only if you provide the unit starting point')
 
             if self._is_composite():
                 raise ValueError('Sorry, only simple TimeUnits are supported by this operation')
 
             # Start Epoch
-            start_epoch = s_from_dt(start_dt)
+            start_epoch = s_from_dt(start)
 
             # End epoch
-            end_dt = self.shift_dt(start_dt, 1)
+            end_dt = self.shift(start, 1)
             end_epoch = s_from_dt(end_dt)
 
             # Get duration based on seconds
