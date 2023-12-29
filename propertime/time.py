@@ -198,6 +198,9 @@ class Time(float):
 
         if self.tz:
             tz_or_offset = self.tz
+            has_dst = True if self.dt().dst().total_seconds() else False
+            dst_str = ' DST' if has_dst else ''
+
         else:
             # TODO: move to a _get_utc_offset() support function. Used also in dt().
             iso_time_part = self.iso().split('T')[1]
@@ -205,11 +208,12 @@ class Time(float):
                 tz_or_offset = '+'+iso_time_part.split('+')[1]
             else:
                 tz_or_offset = '-'+iso_time_part.split('-')[1]
+            dst_str = ''
 
         if decimal_part == '0':
-            return ('Time: {} ({} {})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), tz_or_offset))
+            return ('Time: {} ({} {}{})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), tz_or_offset, dst_str))
         else:
-            return ('Time: {} ({}.{} {})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), decimal_part, tz_or_offset))
+            return ('Time: {} ({}.{} {}{})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), decimal_part, tz_or_offset, dst_str))
 
     def __repr__(self):
         return self.__str__()

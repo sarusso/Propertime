@@ -276,7 +276,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time.iso(), '2023-10-29T02:15:00+01:00')
 
         time = Time(2023,10,29,2,15,0, offset=7200, tz='Europe/Rome')
-        self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome)')
+        self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome DST)')
         self.assertEqual(time.iso(), '2023-10-29T02:15:00+02:00')
 
         # Extra check for string init on ambiguous time (TODO: maybe move elsewhere?)
@@ -284,7 +284,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time), 'Time: 1698542100.0 (2023-10-29 02:15:00 Europe/Rome)')
 
         time = Time('2023-10-29T02:15:00+02:00', tz='Europe/Rome')
-        self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome)')
+        self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome DST)')
 
 
     def test_string_representation(self):
@@ -310,8 +310,13 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06.094500)')
 
         # Time zone
+        time = Time(1702928535.0, tz='Europe/Rome')
+        self.assertEqual(str(time), 'Time: 1702928535.0 (2023-12-18 20:42:15 Europe/Rome)')
+
+        # Time zone plus DST
         time = Time(523291560, tz='Europe/Rome')
-        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome)')
+        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
+
 
 
     def test_conversions(self):
@@ -338,10 +343,10 @@ class TestTime(unittest.TestCase):
         # Change time zone
         time = Time(523291560, tz='Europe/Rome')
         time.dt() # Call it to trigger caching the _dt
-        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome)')
+        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
         self.assertEqual(time.offset, 7200)
         time.tz = 'America/New_York'
-        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 10:46:00 America/New_York)')
+        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 10:46:00 America/New_York DST)')
         self.assertEqual(time.offset, -72000)
 
         # Change offset
@@ -354,7 +359,7 @@ class TestTime(unittest.TestCase):
         # Also check that setting an offset after a time zone nullifies the time zone
         time = Time(523291560, tz='Europe/Rome')
         time.dt() # Call it to trigger caching the _dt
-        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome)')
+        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
         time.offset = 3600
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:46:00 +01:00)')
         self.assertEqual(time.tz, None)
