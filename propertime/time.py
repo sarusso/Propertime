@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Time classes"""
+"""Time and TimeUnit classes"""
 
 import re
 import math
 import pytz
 from datetime import datetime, timedelta
 from dateutil.tz.tz import tzoffset
-from .utils import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
-                   get_tz_offset, is_numerical, is_dt_inconsistent, is_dt_ambiguous_without_offset, \
-                   correct_dt_dst
+from .utilities import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
+                       get_tz_offset, is_numerical, is_dt_inconsistent, is_dt_ambiguous_without_offset, \
+                       correct_dt_dst
 from .exceptions import ConsistencyError
 
 # Setup logging

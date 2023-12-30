@@ -3,7 +3,7 @@
 import unittest
 import datetime
 import pytz
-from ..utils import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, \
+from ..utilities import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, \
                     is_dt_ambiguous_without_offset
 from ..time import Time
 from dateutil.tz.tz import tzoffset
@@ -13,7 +13,7 @@ from .. import logger
 logger.setup()
 
 
-class TestUtils(unittest.TestCase):
+class TestUtilities(unittest.TestCase):
 
     def test_correct_dt_dst(self):
 

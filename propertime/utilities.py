@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Time manipulation utilities, with a particular focus on proper time zone and DST handling."""
+"""Time manipulation utilities"""
 
 import datetime, calendar, pytz
 from dateutil.tz.tz import tzoffset
