@@ -58,6 +58,24 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.tz), 'Europe/Rome')
         self.assertEqual(time.offset, 3600)
 
+        # Test from Time string representation
+        time = Time(1650196535.0)
+        time_from_str = Time(str(time))
+        self.assertEqual(time, time_from_str)
+
+        time = Time(1650196535.0, offset=3600)
+        time = Time(str(time))
+        self.assertEqual(time, time_from_str)
+
+        time = Time(1650196535.0, offset=-18000)
+        time = Time(str(time))
+        self.assertEqual(time, time_from_str)
+
+        time = Time(1650196535.0, tz='Europe/Rome')
+        time = Time(str(time))
+        self.assertEqual(time, time_from_str)
+
+
         # Time with datetime-like arguments
         time = Time(2023,12,1)
         self.assertEqual(time, 1701388800.0)

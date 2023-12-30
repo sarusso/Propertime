@@ -54,32 +54,53 @@ class Time(float):
         # Handle value as string
         if isinstance(value, str):
 
-            # Handle naive string if it is the case
-            if not (value[-1] == 'Z' or '+' in value or ('-' in value and '-' in value.split('T')[1])):
+            # Time string representation (e.g. "Time: 1698537600.0 (2023-10-29 02:00:00 Europe/Rome DST)")
+            if  value.startswith('Time: '):
+                value = value.replace('(','').replace(')','')
+                parts = value.split(' ')
+                value = float(parts[1])
+                tz_or_offset = parts[4]
+                try:
+                    given_tz = timezonize(tz_or_offset)
+                except:
+                    offset_as_datetime = datetime.strptime(tz_or_offset[1:],'%H:%M')
+                    offset_as_timedelta = timedelta(hours=offset_as_datetime.hour, minutes=offset_as_datetime.minute)
+                    if tz_or_offset.startswith('+'):
+                        offset_sign = 1
+                    elif tz_or_offset.startswith('-'):
+                        offset_sign = -1
+                    else:
+                        raise ValueError('Unknow Time string format "{}"'.format(value)) from None
+                    given_offset = offset_as_timedelta.total_seconds() * offset_sign
 
-                # Look at the tz argument if any, and use it
-                if given_tz:
-                    converted_dt = dt_from_str(value, tz=given_tz)
-
-                # Look at the offset argument if any, and use it
-                elif given_offset is not None:
-                    converted_dt = dt_from_str(value, tz=tzoffset(None, given_offset))
-
-                # Otherwise, treat as UTC
-                else:
-                    converted_dt = dt_from_str(value+'Z')
-
+            # Other (ISO) string format
             else:
-                converted_dt = dt_from_str(value)
+                # Handle naive string if it is the case
+                if not (value[-1] == 'Z' or '+' in value or ('-' in value and '-' in value.split('T')[1])):
 
-                # Handle embedded time zone (only Zulu, which is UTC) or offset 
-                if value[-1] == 'Z':
-                    embedded_tz = pytz.UTC
+                    # Look at the tz argument if any, and use it
+                    if given_tz:
+                        converted_dt = dt_from_str(value, tz=given_tz)
+
+                    # Look at the offset argument if any, and use it
+                    elif given_offset is not None:
+                        converted_dt = dt_from_str(value, tz=tzoffset(None, given_offset))
+
+                    # Otherwise, treat as UTC
+                    else:
+                        converted_dt = dt_from_str(value+'Z')
+
                 else:
-                    embedded_offset = converted_dt.utcoffset().seconds
+                    converted_dt = dt_from_str(value)
 
-            # Now convert the (always offset-aware) datetime converted from the string
-            value = s_from_dt(converted_dt)
+                    # Handle embedded time zone (only Zulu, which is UTC) or offset 
+                    if value[-1] == 'Z':
+                        embedded_tz = pytz.UTC
+                    else:
+                        embedded_offset = converted_dt.utcoffset().seconds
+
+                # Now convert the (always offset-aware) datetime converted from the string
+                value = s_from_dt(converted_dt)
 
 
         # Handle no value -> current time
