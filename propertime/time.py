@@ -56,8 +56,8 @@ class Time(float):
 
             # Time string representation (e.g. "Time: 1698537600.0 (2023-10-29 02:00:00 Europe/Rome DST)")
             if  value.startswith('Time: '):
-                value = value.replace('(','').replace(')','')
-                parts = value.split(' ')
+                value_string = value
+                parts = value.replace('(','').replace(')','').split(' ')
                 value = float(parts[1])
                 tz_or_offset = parts[4]
                 try:
@@ -72,6 +72,10 @@ class Time(float):
                     else:
                         raise ValueError('Unknow Time string format "{}"'.format(value)) from None
                     given_offset = offset_as_timedelta.total_seconds() * offset_sign
+
+                # Ensure consistency now
+                if value_string != str(Time(value, tz=given_tz, offset=given_offset)):
+                    raise ValueError('Inconsistent Time string format "{}"'.format(value)) from None
 
             # Other (ISO) string format
             else:

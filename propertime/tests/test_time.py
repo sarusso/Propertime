@@ -75,6 +75,11 @@ class TestTime(unittest.TestCase):
         time = Time(str(time))
         self.assertEqual(time, time_from_str)
 
+        with self.assertRaises(ValueError):
+            Time('Time: 2818 (2023-10-29 02:15:00 Europe/Rome DST)')
+
+        with self.assertRaises(ValueError):
+            Time('Time: 1698538500.0 (2025-10-29 02:15:00 Europe/Rome DST)')
 
         # Time with datetime-like arguments
         time = Time(2023,12,1)
