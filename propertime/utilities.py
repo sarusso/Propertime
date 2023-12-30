@@ -12,7 +12,7 @@ UTC = pytz.UTC
 
 def timezonize(tz):
     """Convert a string representation of a time zone to its pytz object, or
-    do nothing if the argument is already a pytz time zone or tzoffset or None"""
+    do nothing if the argument is already a pytz time zone or tzoffset, or None."""
 
     # Checking if something is a valid pytz object is hard as it seems that they are spread around the pytz package.
     #
@@ -87,7 +87,7 @@ def dt(*args, **kwargs):
     Args:
         year(int): the year.
         month(int): the month.
-        day(int); the day.
+        day(int): the day.
         hour(int): the hour, defaults to 0.
         minute(int): the minute, Defaults to 0.
         second(int): the second, Defaults to 0.
@@ -149,30 +149,28 @@ def dt(*args, **kwargs):
 
     return time_dt
 
-
 def get_tz_offset(dt):
     """Get the time zone offset, in seconds."""
     return s_from_dt(dt.replace(tzinfo=UTC)) - s_from_dt(dt)
 
-
-def correct_dt_dst(dt_obj):
+def correct_dt_dst(dt):
     """Correct the DST of a datetime object, by re-creating it."""
 
     # https://en.wikipedia.org/wiki/Tz_database
     # https://www.iana.org/time-zones
 
-    if dt_obj.tzinfo is None:
-        return dt_obj
+    if dt.tzinfo is None:
+        return dt
 
     # Create and return a New datetime object. This corrects the DST if errors are present.
-    return dt(dt_obj.year,
-              dt_obj.month,
-              dt_obj.day,
-              dt_obj.hour,
-              dt_obj.minute,
-              dt_obj.second,
-              dt_obj.microsecond,
-              tz=dt_obj.tzinfo)
+    return __dt(dt.year,
+                dt.month,
+                dt.day,
+                dt.hour,
+                dt.minute,
+                dt.second,
+                dt.microsecond,
+                tz=dt.tzinfo)
 
 
 def as_tz(dt, tz):
@@ -225,7 +223,7 @@ def s_from_dt(dt, tz=None):
 def dt_from_str(string, tz=None):
     """Create a datetime object from a string.
 
-    This is a basic IS08601, see https://www.w3.org/TR/NOTE-datetime
+    This is a basic IS0 8601, see https://www.w3.org/TR/NOTE-datetime
 
     Supported formats on UTC:
         1) YYYY-MM-DDThh:mm:ssZ
@@ -306,3 +304,8 @@ def is_numerical(item):
         return True
     except:
         return False
+
+# To acces the dt function even if an argument
+# of a function is named "dt".
+__dt = dt
+

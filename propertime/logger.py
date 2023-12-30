@@ -12,9 +12,11 @@ levels_mapping = { 50: 'CRITICAL',
                    20: 'INFO',
                    10: 'DEBUG',
                     0: 'NOTSET'}
-               
+
 
 def setup(level=LOGLEVEL, force=False):
+    """Setup the library logger at the given level. Checks also if such logger is already inizialized and
+    if there are any inconsistencies between the legger levels, and force the new level if required to."""
     propertime_logger = logging.getLogger('propertime')
     try:
         configured = False
@@ -29,7 +31,7 @@ def setup(level=LOGLEVEL, force=False):
                         propertime_logger.warning('You tried to setup the logger with level "{}" but it is already configured with level "{}". Use force=True to force reconfiguring it.'.format(level, levels_mapping[handler.level]))
     except IndexError:
         configured=False
-    
+
     if not configured:
         propertime_handler = logging.StreamHandler()
         propertime_handler.set_name('propertime_handler')

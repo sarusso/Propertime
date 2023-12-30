@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 class Time(float):
+    """A Time object, as a floating point number representing the number of seconds passed after the zero on
+    the time axis, which is set to 1st January 1970 UTC. Any other representations (as date/hours, time zones,
+    daylight saving times) are built on top of it."""
 
     def __new__(cls, value=None, *args, **kwargs):
 
@@ -170,6 +173,7 @@ class Time(float):
 
     @property
     def tz(self):
+        """The time zone of the time. Set it to any valid time zone (object or string representation) to change it."""
         return self._tz
 
     @tz.setter
@@ -188,6 +192,7 @@ class Time(float):
 
     @property
     def offset(self):
+        """The (UTC) offset of the time. Set it to any valid number to change it."""
         return self._offset
 
     @offset.setter
@@ -204,6 +209,7 @@ class Time(float):
         self._tz = None
 
     def dt(self):
+        """Return time as a datetime object."""
         try:
             return self._dt
         except AttributeError:
@@ -214,6 +220,7 @@ class Time(float):
             return self._dt
 
     def iso(self):
+        """Return time as a string in ISO 8601 format."""
         return str_from_dt(self.dt())
 
     def __str__(self):
@@ -244,10 +251,22 @@ class Time(float):
         return self.__str__()
 
 
+    def conjugate(self):
+        """Disabled. It does not make sense to use imaginary numbers with time."""
+        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+
+    def imag(self):
+        """Disabled. It does not make sense to use imaginary numbers with time."""
+        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+
+    def real(self):
+        """Disabled. It does not make sense to use imaginary numbers with time."""
+        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+
 
 class TimeUnit:
-    """A unit which can represent both physical (fixed) and calendar (variable) time units.
-    Can handle precision up to the microsecond and can be added and subtracted with numerical
+    """A time unit object, that can have both fixed (physical) or variable (calendar) time length.
+    It can handle precision up to the microsecond and can be added and subtracted with numerical
     values, Time and datetime objects, and other TimeUnits.
 
     Can be initialized both using a numerical value, a string representation, or by explicitly setting
