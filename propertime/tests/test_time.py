@@ -328,9 +328,17 @@ class TestTime(unittest.TestCase):
         time = Time(1702928535.0, offset=-68400)
         self.assertEqual(str(time), 'Time: 1702928535.0 (2023-12-18 00:42:15 -19:00)')
 
-        # Offset non-hourly and sub-second
-        time = Time(523291560, offset=3546.0945)
-        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06.094500)')
+        # Offset non-hourly
+        time = Time(523291560, offset=3546)
+        self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06)')
+
+        # Offset sub-second
+        import sys
+        if sys.version_info[0] >= 3 and sys.version_info[1] >= 7:
+            time = Time(523291560, offset=3546.0945)
+            self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06.094500)')
+        else:
+            print('WARNING: Skipping sub-second offsets test as not supported in Python 3.6')
 
         # Time zone
         time = Time(1702928535.0, tz='Europe/Rome')
