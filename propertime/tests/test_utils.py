@@ -32,15 +32,19 @@ class TestUtilities(unittest.TestCase):
 
     def test_dt(self):
 
-        # Test Naive
+        # Test Default
         date_time = dt(2015,3,29,2,15,0)
+        self.assertEqual(str(date_time), '2015-03-29 02:15:00+00:00')
+
+        # Test Naive
+        date_time = dt(2015,3,29,2,15,0, naive=True)
         self.assertEqual(str(date_time), '2015-03-29 02:15:00')
 
-        # Test UTC
+        # Test with time zone (UTC)
         date_time = dt(2015,3,29,2,15,0, tz='UTC')
         self.assertEqual(str(date_time), '2015-03-29 02:15:00+00:00')
 
-        # Test with  time zone
+        # Test with time zone
         date_time = dt(2015,3,25,4,15,0, tz='Europe/Rome')
         self.assertEqual(str(date_time), '2015-03-25 04:15:00+01:00')
         date_time = dt(2015,9,25,4,15,0, tz='Europe/Rome')
@@ -55,7 +59,7 @@ class TestUtilities(unittest.TestCase):
             dt(2015,10,25,2,15,0, tz='Europe/Rome')
 
         # Ambiguous time with guessing enabled (just raises a warning)
-        date_time = dt(2015,10,25,2,15,0, tz='Europe/Rome', can_guess=True)
+        date_time = dt(2015,10,25,2,15,0, tz='Europe/Rome', guessing=True)
         self.assertEqual(str(date_time), '2015-10-25 02:15:00+01:00')
 
         # Not existent time does not raises
@@ -99,11 +103,11 @@ class TestUtilities(unittest.TestCase):
             s_from_dt(date_time)
 
         # Naive datetime specifying on which time zone works
-        date_time = dt(2023,12,3,16,12,0)
+        date_time = dt(2023,12,3,16,12,0, naive=True)
         self.assertEqual(s_from_dt(date_time, tz='UTC'), 1701619920)
 
         # Naive datetime specifying on which time zone works
-        date_time = dt(2023,12,3,16,12,0)
+        date_time = dt(2023,12,3,16,12,0, naive=True)
         self.assertEqual(s_from_dt(date_time, tz='Europe/Rome'), 1701616320)
 
 
@@ -144,6 +148,9 @@ class TestUtilities(unittest.TestCase):
 
         # From ISO on offset -07:00
         self.assertEqual(str(dt_from_str('1986-08-01T16:46:00-07:00')), '1986-08-01 16:46:00-07:00')
+
+        # From ISO as naive with time zone
+        self.assertEqual(str(dt_from_str('1986-08-01T16:46:00', tz='Europe/Rome')),'1986-08-01 16:46:00+02:00')
 
         # From ISO with a time zone set (tricky one, but correct)
         self.assertEqual(str(dt_from_str('2023-03-26 02:15:00+01:00', tz='Europe/Rome')), '2023-03-26 03:15:00+02:00')

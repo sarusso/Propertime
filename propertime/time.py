@@ -23,7 +23,7 @@ class Time(float):
 
     def __new__(cls, value=None, *args, **kwargs):
 
-        can_guess = kwargs.pop('can_guess', False)
+        guessing = kwargs.pop('guessing', False)
         given_tz = timezonize(kwargs.pop('tz', None))
         given_offset = kwargs.pop('offset', None)
         embedded_tz = None
@@ -121,17 +121,17 @@ class Time(float):
                 if given_tz:
                     # Time zone, set, check if also the offset was
                     if given_offset is not None:
-                        value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), can_guess=can_guess).astimezone(given_tz))
+                        value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), guessing=guessing).astimezone(given_tz))
                     else:
-                        value = s_from_dt(dt(value, *args, tz=given_tz, can_guess=can_guess))
+                        value = s_from_dt(dt(value, *args, tz=given_tz, guessing=guessing))
 
                 elif given_offset is not None:
                     # Offset set
-                    value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), can_guess=can_guess))
+                    value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), guessing=guessing))
 
                 else:
                     # Nothing set, treat as UTC
-                    value = s_from_dt(dt(value, *args, tz='UTC', can_guess=can_guess))
+                    value = s_from_dt(dt(value, *args, tz='UTC', guessing=guessing))
 
             else:
                 # Check float-compatible value type

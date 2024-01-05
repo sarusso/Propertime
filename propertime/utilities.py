@@ -92,15 +92,22 @@ def dt(*args, **kwargs):
         minute(int): the minute, Defaults to 0.
         second(int): the second, Defaults to 0.
         microsecond(int): the microsecond, Defaults to None.
-        tz(tzinfo, pytz, str): the time zone, defaults to None.
+        naive(bool): if to create a naive (without time zone) datetime.
+        tz(tzinfo, pytz, str): the time zone, defaults to UTC or None if naive is set.
         offset_s(int,float): an optional offset, in seconds.
         trustme(bool): if to skip sanity checks. Defaults to False.
+        guessing(bool): if to enable guessing mode and guess in ambiguous situations.
     """
 
+    naive = kwargs.pop('naive', False)
     tz = kwargs.pop('tz', None)
-    offset_s = kwargs.pop('offset_s', None)   
+    if naive and tz is not None:
+        raise ValueError('Set naive=True but also set a time zone ({}): chose which one'.format(tz))
+    if not naive and tz is None:
+        tz = UTC
+    offset_s = kwargs.pop('offset_s', None)
     trustme = kwargs.pop('trustme', False)
-    can_guess = kwargs.pop('can_guess', False)
+    guessing = kwargs.pop('guessing', False)
 
     if kwargs:
         raise Exception('Unhandled arg: "{}".'.format(kwargs))
@@ -130,7 +137,7 @@ def dt(*args, **kwargs):
         if not trustme and tz and tz != UTC:
             if is_dt_ambiguous_without_offset(time_dt):
                 time_dt_naive = time_dt.replace(tzinfo=None)
-                if not can_guess:
+                if not guessing:
                     raise ValueError('Sorry, time {} is ambiguous on time zone {} without an offset'.format(time_dt_naive, tz))
                 else:
                     # TODO: move to a _get_utc_offset() support function. Used also in Time __str__.
@@ -284,7 +291,7 @@ def dt_from_str(string, tz=None):
         second  = int(second)
         usecond = 0
 
-    return dt(year, month, day, hour, minute, second, usecond, tz=tz, offset_s=offset_s)
+    return dt(year, month, day, hour, minute, second, usecond, tz=tz, naive=True if not tz else False, offset_s=offset_s)
 
 
 def str_from_dt(dt):

@@ -289,7 +289,7 @@ class TestTime(unittest.TestCase):
             Time(2023,10,29,2,15,0, tz='Europe/Rome')
 
         # Ambiguous time with guessing enabled (just raises a warning)
-        time = Time(2023,10,29,2,15,0, tz='Europe/Rome', can_guess=True)
+        time = Time(2023,10,29,2,15,0, tz='Europe/Rome', guessing=True)
         self.assertEqual(str(time), 'Time: 1698542100.0 (2023-10-29 02:15:00 Europe/Rome)')
         self.assertEqual(time.iso(), '2023-10-29T02:15:00+01:00')
 
