@@ -17,9 +17,44 @@ logger = logging.getLogger(__name__)
 
 
 class Time(float):
-    """A Time object, as a floating point number representing the number of seconds passed after the zero on
-    the time axis, which is set to 1st January 1970 UTC. Any other representations (as date/hours, time zones,
-    daylight saving times) are built on top of it."""
+    """A Time object, as a floating point number corresponding the number of seconds after the zero on the
+    time axis (Epoch), which is set to 1st January 1970 UTC. Any other representations (as dates and hours, 
+    time zones, daylight saving times) are built on top of it.
+
+    It can be initialized in several ways:
+
+        * ``Time()``: if no arguments, time is set to now;
+        * ``Time(1703517120.0)``: it the argument is a number, it is treated as Epoch seconds;
+        * ``Time(2023,5,6,13,45)``: using a datetime-like mode;
+        * ``Time(datetime(2023,5,6,13,45))``: using a datetime, which if naive is assumed to be on UTC;
+        * ``Time('2023-12-25T16:12:00+01:00')``: using an ISO 8601 string, assumed on UTC if naive.
+
+    All these initialization modes support two additional arguments:
+
+        * ``tz`` for the time zone, which if set on a naive time specification just decorates it,
+          and if set on a timezone-aware (or offset-aware) time specification shifts it there;
+
+        * ``offset`` for an offset in seconds wiht respect to UTC, which if set on a naive time
+          specification just decorates it, and if set on a timezone-aware (or offset-aware) time
+          specification shifts it there.
+
+    For example, ``Time(2023,5,6,13,45, tz='US/Eastern')`` creates a time directly on such time zone,
+    while ``Time('2023-12-25T16:12:00+01:00', tz='US/Eastern')`` shifts the UTC time corresponding to
+    the ISO 8601 specification by the string on the US/Eastern time zone.
+
+    The initialization in case of ambiguous or not-existent times generates an error:
+    ``Time(2023,11,5,1,15, tz='US/Eastern')`` is ambiguous as there are "two" 1:15 AM on DST change on time zone
+    US/Eastern, and ``Time(2023,3,12,2,30, tz='US/Eastern')`` just does not exists on such time zone. Creating ``Time``
+    objects form ambiguous time specification can be forced by enabling the "guessing" mode (``guessing=True``), but
+    it will only be possible to create one of the two.
+
+    Args:
+        value: the time value, either as seconds (float), string representation, or datetime object.
+        tz: the time zone, either as object or string representation.
+        offset: the offset, in seconds, with respect to UTC.
+        guessing: if to enable guessing mode in case of ambiguous time specifications.
+        *args: the time components (year, month, day, hour, minute, seconds). Supersedes the ``value`` argument.
+    """
 
     def __new__(cls, value=None, *args, **kwargs):
 
@@ -292,7 +327,7 @@ class TimeUnit:
     first one uses the numerical value, the second the string representation, and the third explicitly
     sets the time component (hours in this case): ``TimeUnit('1h')``, ``TimeUnit(hours=1)``, or ``TimeUnit(3600)``.
     Not all time units can be initialized using the numerical value, in particular calendar time units which can
-    have variable duration: a time unit of one day, or ``TimeUnit('1d')``, can last for 23, 24 or 24 hours depending
+    have variable duration: a time unit of one day, or ``TimeUnit('1D')``, can last for 23, 24 or 24 hours depending
     on DST changes. On the contrary, a ``TimeUnit('24h')`` will always last 24 hours and can be initialized as
     ``TimeUnit(86400)`` as well. 
 
