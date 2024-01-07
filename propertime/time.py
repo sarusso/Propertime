@@ -114,10 +114,9 @@ class Time(float):
         elif value is None:
             value = now_s()
 
-        else:
-            # Detect classic datetime-like init
-            if len(args) > 0:
-
+        # Detect classic datetime-like init
+        elif len(args) > 0:
+            try:
                 if given_tz:
                     # Time zone, set, check if also the offset was
                     if given_offset is not None:
@@ -133,12 +132,19 @@ class Time(float):
                     # Nothing set, treat as UTC
                     value = s_from_dt(dt(value, *args, tz='UTC', guessing=guessing))
 
-            else:
-                # Check float-compatible value type
-                try:
-                    float(value)
-                except:
-                    raise ValueError('Don\'t know how to create Time from "{}" of type "{}"'.format(value, value.__class__.__name__))
+            except ValueError as e:
+                # TODO: improve this? e.g. AmbiguousVauleError?
+                if 'ambiguous' in str(e):
+                    raise ValueError('{}. Use guessing=True to allow creating it with a guess.'.format(e)) from None
+                else:
+                    raise e from None
+
+        # Check float-compatible value type
+        else:
+            try:
+                float(value)
+            except:
+                raise ValueError('Don\'t know how to create Time from "{}" of type "{}"'.format(value, value.__class__.__name__))
 
         # Create the new instance
         time_instance = super().__new__(cls, value)
