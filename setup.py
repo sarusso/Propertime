@@ -15,9 +15,9 @@ time (similar to a datetime) and the ``TimeUnit`` class for representing units
 of time (similar to timedelta). Such classes play nice with Python datetimes so
 that you can mix and match and use them only when needed.
 
-You can have a look at the README for a better introduction, some example usage
-and more info about Propertime; and you can get started by having a look at the
-[quickstart notebook](https://github.com/sarusso/Propertime/blob/main/Quickstart.ipynb),
+You can have a look at the [README](https://github.com/sarusso/Propertime/blob/main/README.md)
+for a better introduction together with some usage examples, and you can get started by having
+a look at the [quickstart notebook](https://github.com/sarusso/Propertime/blob/main/Quickstart.ipynb)
 or by reading the [reference documentation](https://propertime.readthedocs.io).
       """,
       long_description_content_type='text/markdown',
