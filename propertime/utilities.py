@@ -3,12 +3,15 @@
 
 import datetime, calendar, pytz
 from dateutil.tz.tz import tzoffset
+try:
+    from zoneinfo import ZoneInfo
+except:
+    ZoneInfo = None
 
 import logging
 logger = logging.getLogger(__name__)
 
 UTC = pytz.UTC
-
 
 def timezonize(tz):
     """Convert a string representation of a time zone to its pytz object, or
@@ -28,6 +31,9 @@ def timezonize(tz):
         return tz
 
     if isinstance(tz,tzoffset):
+        return tz
+
+    if ZoneInfo and isinstance(tz, ZoneInfo):
         return tz
 
     if not 'pytz' in str(type(tz)):

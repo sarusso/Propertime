@@ -3,10 +3,13 @@
 import unittest
 import datetime
 import pytz
-from ..utilities import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, \
-                    is_dt_ambiguous_without_offset
+from ..utilities import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, is_dt_ambiguous_without_offset
 from ..time import Time
 from dateutil.tz.tz import tzoffset
+try:
+    from zoneinfo import ZoneInfo
+except:
+    ZoneInfo = None
 
 # Setup logging
 from .. import logger
@@ -14,6 +17,25 @@ logger.setup()
 
 
 class TestUtilities(unittest.TestCase):
+
+    def test_timezonize(self):
+
+        # Check pass through for time zone objects already valid
+        pytz_time_zone = pytz.timezone('Europe/Rome')
+        self.assertEqual(pytz_time_zone, timezonize(pytz_time_zone))
+
+        offset = tzoffset(None, 3600)
+        self.assertEqual(offset, timezonize(offset))
+
+        if ZoneInfo:
+            zone_info = ZoneInfo('Europe/Rome')
+            self.assertEqual(zone_info, timezonize(zone_info))
+
+        # Check correct conversion as pytz objects
+        time_zone = timezonize(pytz.timezone('Europe/Rome'))
+        self.assertEqual(str(time_zone), 'Europe/Rome')
+        self.assertTrue(isinstance(time_zone, type(pytz.timezone('Europe/Rome'))))
+
 
     def test_correct_dt_dst(self):
 

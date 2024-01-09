@@ -6,6 +6,10 @@ from datetime import datetime
 from ..utilities import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, now_s
 from ..time import Time, TimeUnit
 from dateutil.tz.tz import tzoffset
+try:
+    from zoneinfo import ZoneInfo
+except:
+    ZoneInfo = None
 
 # Setup logging
 from .. import logger
@@ -161,6 +165,13 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time, 1701616320.0)
         self.assertEqual(str(time.dt()), '2023-12-03 16:12:00+01:00')
         self.assertEqual(str(time.tz), 'Europe/Rome')
+
+        if ZoneInfo:
+            # Time from datetime with time zone with ZoneInfo
+            time = Time(datetime(2023,12,3,10,12,0, tzinfo=ZoneInfo('America/New_York')))
+            self.assertEqual(time, 1701616320.0)
+            self.assertEqual(str(time.dt()), '2023-12-03 10:12:00-05:00')
+            self.assertEqual(str(time.tz), 'America/New_York')
 
         # Time from datetime with offset and extra time zone
         # Expected behavior: move to the given time zone
