@@ -7,8 +7,7 @@ An attempt at proper time management in Python.
 
 ## Introduction
 
-
-Propertime is an attempt at implementing proper time management in Python, by fully embracing the extra complications due to how we measure an manage time as humans instead of just negating them.
+Propertime is an attempt to implement proper time management in Python, by fully embracing the additional complications due to how we measure time as humans instead of just denying them.
 
 These include but are not limited to: differences between physical and calendar time, time zones, offsets, daylight saving times, undefined calendar time operations and variable length time units.
 
