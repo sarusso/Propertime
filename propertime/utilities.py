@@ -215,7 +215,7 @@ def dt_from_s(s, tz='UTC'):
 def s_from_dt(dt, tz=None):
     """Return the epoch seconds from a datetime object, with floating point for milliseconds/microseconds."""
     if not (isinstance(dt, datetime.datetime)):
-        raise Exception('t_from_dt function called without datetime argument, got type "{}" instead.'.format(dt.__class__.__name__))
+        raise TypeError('Function called without datetime argument, got "{}" instead'.format(dt.__class__.__name__))
     try:
         if dt.tzinfo is None and tz is None:
             raise ValueError('Cannot convert to epoch seconds naive datetimes')
