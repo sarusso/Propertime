@@ -420,14 +420,14 @@ class TestTime(unittest.TestCase):
 
 
 
-    def test_change_offset_and_timezone(self):
+    def test_as_offset_timezone(self):
 
-        # Change time zone
+        # Get Time as another time zone
         time = Time(523291560, tz='Europe/Rome')
         time.to_dt() # Call it to trigger caching the _dt
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
         self.assertEqual(time.offset, 7200)
-        time.tz = 'America/New_York'
+        time = time.as_tz('America/New_York')
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 10:46:00 America/New_York DST)')
         self.assertEqual(time.offset, -72000)
 
@@ -435,14 +435,14 @@ class TestTime(unittest.TestCase):
         time = Time(523291560, tz=None, offset=3600)
         time.to_dt() # Call it to trigger caching the _dt
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:46:00 +01:00)')
-        time.offset = 7200
+        time = time.as_offset(7200)
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 +02:00)')
 
         # Also check that setting an offset after a time zone nullifies the time zone
         time = Time(523291560, tz='Europe/Rome')
         time.to_dt() # Call it to trigger caching the _dt
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
-        time.offset = 3600
+        time = time.as_offset(3600)
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:46:00 +01:00)')
         self.assertEqual(time.tz, None)
 

@@ -4,6 +4,7 @@
 import re
 import math
 import pytz
+import copy
 from datetime import datetime, timedelta
 from dateutil.tz.tz import tzoffset
 from .utilities import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
@@ -337,40 +338,48 @@ class Time(float):
 
     @property
     def tz(self):
-        """The time zone of the time. Set it to any valid time zone (object or string representation) to change it."""
+        """The time zone of the time."""
         return self._tz
 
-    @tz.setter
-    def tz(self, value):
-        self._tz = value
+    def as_tz(self, tz):
+        """Get this Time on another time zone."""
+
+        new_obj = copy.deepcopy(self)
+        new_obj._tz = tz
 
         # Reset dt cache if present
         try:
-            del self._dt
+            del new_obj._dt
         except AttributeError:
             pass
 
         # Set the offset accordingly to the time zone
-        sign = -1 if self.to_dt().utcoffset().days < 0 else 1 
-        self._offset = sign * self.to_dt().utcoffset().seconds
+        sign = -1 if new_obj.to_dt().utcoffset().days < 0 else 1 
+        new_obj._offset = sign * new_obj.to_dt().utcoffset().seconds
+
+        return new_obj
 
     @property
     def offset(self):
-        """The (UTC) offset of the time. Set it to any valid number to change it."""
+        """The (UTC) offset of the time."""
         return self._offset
 
-    @offset.setter
-    def offset(self, value):
-        self._offset = value
+    def as_offset(self, offset):
+        """Get this Time with another offset."""
+
+        new_obj = copy.deepcopy(self)
+        new_obj._offset = offset
 
         # Reset dt cache
         try:
-            del self._dt
+            del new_obj._dt
         except AttributeError:
             pass
 
         # Unset the time zone
-        self._tz = None
+        new_obj._tz = None
+
+        return new_obj
 
     def to_dt(self):
         """Return time as a datetime object."""
