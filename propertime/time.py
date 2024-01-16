@@ -351,8 +351,8 @@ class Time(float):
             pass
 
         # Set the offset accordingly to the time zone
-        sign = -1 if self.dt().utcoffset().days < 0 else 1 
-        self._offset = sign * self.dt().utcoffset().seconds
+        sign = -1 if self.to_dt().utcoffset().days < 0 else 1 
+        self._offset = sign * self.to_dt().utcoffset().seconds
 
     @property
     def offset(self):
@@ -372,7 +372,7 @@ class Time(float):
         # Unset the time zone
         self._tz = None
 
-    def dt(self):
+    def to_dt(self):
         """Return time as a datetime object."""
         try:
             return self._dt
@@ -386,9 +386,9 @@ class Time(float):
             except Exception as e:
                 raise e.__class__('{} (time as float: "{}", offset: "{}", tz: "{}")'.format(e, float(self), self.offset, self.tz)) from None
 
-    def iso(self):
+    def to_iso(self):
         """Return time as a string in ISO 8601 format."""
-        return str_from_dt(self.dt())
+        return str_from_dt(self.to_dt())
 
     def __str__(self):
 
@@ -397,12 +397,12 @@ class Time(float):
 
         if self.tz:
             tz_or_offset = self.tz
-            has_dst = True if self.dt().dst().total_seconds() else False
+            has_dst = True if self.to_dt().dst().total_seconds() else False
             dst_str = ' DST' if has_dst else ''
 
         else:
             # TODO: move to a _get_utc_offset() support function. Used also in dt().
-            iso_time_part = self.iso().split('T')[1]
+            iso_time_part = self.to_iso().split('T')[1]
             if '+' in iso_time_part:
                 tz_or_offset = '+'+iso_time_part.split('+')[1]
             else:
@@ -410,9 +410,9 @@ class Time(float):
             dst_str = ''
 
         if decimal_part == '0':
-            return ('Time: {} ({} {}{})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), tz_or_offset, dst_str))
+            return ('Time: {} ({} {}{})'.format(self_as_float, self.to_dt().strftime('%Y-%m-%d %H:%M:%S'), tz_or_offset, dst_str))
         else:
-            return ('Time: {} ({}.{} {}{})'.format(self_as_float, self.dt().strftime('%Y-%m-%d %H:%M:%S'), decimal_part, tz_or_offset, dst_str))
+            return ('Time: {} ({}.{} {}{})'.format(self_as_float, self.to_dt().strftime('%Y-%m-%d %H:%M:%S'), decimal_part, tz_or_offset, dst_str))
 
     def __repr__(self):
         return self.__str__()
@@ -607,7 +607,7 @@ class TimeUnit:
             return self.shift(other, times=1)
 
         elif isinstance(other, Time):
-            return Time.from_dt(self.shift(other.dt(), times=1))
+            return Time.from_dt(self.shift(other.to_dt(), times=1))
 
         elif is_numerical(other):
             return other + self.as_seconds()
@@ -629,7 +629,7 @@ class TimeUnit:
             return self.shift(other, times=-1)
 
         elif isinstance(other, Time):
-            return Time(self.shift(other.dt(), times=-1))
+            return Time(self.shift(other.to_dt(), times=-1))
 
         elif is_numerical(other):
             return other - self.as_seconds()
@@ -747,7 +747,7 @@ class TimeUnit:
             raise ValueError('Sorry, only simple TimeUnits are supported by the round operation')
 
         if isinstance(time, Time):
-            time_dt = time.dt()
+            time_dt = time.to_dt()
         else:
             time_dt = time
 
@@ -863,7 +863,7 @@ class TimeUnit:
             raise ValueError('Sorry, only simple TimeUnits are supported by the shift operation')
  
         if isinstance(time, Time):
-            time_dt = time.dt()
+            time_dt = time.to_dt()
         else:
             time_dt = time
  
@@ -948,7 +948,7 @@ class TimeUnit:
         """The duration of the TimeUnit in seconds."""
 
         if start and isinstance(start, Time):
-            start = start.dt()
+            start = start.to_dt()
 
         if self.type == self._CALENDAR:
 
