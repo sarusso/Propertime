@@ -61,7 +61,7 @@ def is_dt_inconsistent(dt):
 
 
 def is_dt_ambiguous_without_offset(dt):
-    """Check if a datetime object is specified in an ambigous way on a given time zone"""
+    """Check if a datetime object is specified in an ambiguous way on a given time zone"""
 
     dt_minus_one_hour_via_UTC = UTC.localize(datetime.datetime.utcfromtimestamp(s_from_dt(dt)-3600)).astimezone(dt.tzinfo)
     if dt.hour == dt_minus_one_hour_via_UTC.hour:
@@ -165,6 +165,12 @@ def dt(*args, **kwargs):
 def get_tz_offset(dt):
     """Get the time zone offset, in seconds."""
     return s_from_dt(dt.replace(tzinfo=UTC)) - s_from_dt(dt)
+
+def get_offset_from_dt(dt):
+    """Get the offset from a datetime, in seconds."""
+    sign = -1 if dt.utcoffset().days < 0 else 1
+    offset = sign * dt.utcoffset().seconds
+    return offset
 
 def correct_dt_dst(dt):
     """Correct the DST of a datetime object, by re-creating it."""

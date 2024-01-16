@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from dateutil.tz.tz import tzoffset
 from .utilities import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
                        get_tz_offset, is_numerical, is_dt_inconsistent, is_dt_ambiguous_without_offset, \
-                       correct_dt_dst
+                       correct_dt_dst, get_offset_from_dt
 from .exceptions import ConsistencyError
 
 # Setup logging
@@ -21,85 +21,251 @@ class Time(float):
     time axis (Epoch), which is set to 1st January 1970 UTC. Any other representations (as dates and hours, 
     time zones, daylight saving times) are built on top of it.
 
-    It can be initialized in several ways:
+    It can be initialized in three main ways:
 
-        * ``Time()``: if no arguments, time is set to now;
+        * ``Time()``: if no arguments are given, then time is set to now;
         * ``Time(1703517120.0)``: it the argument is a number, it is treated as Epoch seconds;
-        * ``Time(2023,5,6,13,45)``: using a datetime-like mode;
-        * ``Time(datetime(2023,5,6,13,45))``: using a datetime, which if naive is assumed to be on UTC;
-        * ``Time('2023-12-25T16:12:00+01:00')``: using an ISO 8601 string, assumed on UTC if naive.
+        * ``Time(2023,5,6,13,45)``: if there is more than one argument, then use a datetime-like init mode.
 
-    All these initialization modes support two additional arguments:
-
-        * ``tz`` for the time zone, which if set on a naive time specification just decorates it,
-          and if set on a timezone-aware (or offset-aware) time specification shifts it there;
-
-        * ``offset`` for an offset in seconds wiht respect to UTC, which if set on a naive time
-          specification just decorates it, and if set on a timezone-aware (or offset-aware) time
-          specification shifts it there.
-
-    For example, ``Time(2023,5,6,13,45, tz='US/Eastern')`` creates a time directly on such time zone,
-    while ``Time('2023-12-25T16:12:00+01:00', tz='US/Eastern')`` shifts the UTC time corresponding to
-    the ISO 8601 specification by the string on the US/Eastern time zone.
+    In all three cases, by default the time is assumed on UTC. To  create a time instance on a specific time zone,
+    or with a specific UTC offset, you can use their respective keyword arguments ``tz`` and ``offset``.
 
     The initialization in case of ambiguous or not-existent times generates an error:
     ``Time(2023,11,5,1,15, tz='US/Eastern')`` is ambiguous as there are "two" 1:15 AM on DST change on time zone
     US/Eastern, and ``Time(2023,3,12,2,30, tz='US/Eastern')`` just does not exists on such time zone. Creating ``Time``
-    objects form ambiguous time specification can be forced by enabling the "guessing" mode (``guessing=True``), but
-    it will only be possible to create one of the two.
+    objects form an ambiguous time specification can be forced by enabling the "guessing" mode (``guessing=True``), but
+    it will only be possible to create one of the two. To address the issue, use Epoch seconds or provide an UTC offset.
 
     Args:
-        value: the time value, either as seconds (float), string representation, or datetime object.
-        tz: the time zone, either as object or string representation.
-        offset: the offset, in seconds, with respect to UTC.
-        guessing: if to enable guessing mode in case of ambiguous time specifications.
-        *args: the time components (year, month, day, hour, minute, seconds). Supersedes the ``value`` argument.
+        *args: the time value, either as seconds (float), string representation, or datetime-like 
+            components (year, month, day, hour, minute, seconds). If not given then time is now.
+        tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
+        offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
+            to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
+        guessing (:obj:`bool`): if to enable guessing mode in case of ambiguous time specifications. Defaults to False.
     """
 
-    def __new__(cls, value=None, *args, **kwargs):
+    @classmethod
+    def from_dt(cls, dt, tz='auto', offset='auto', guessing=False):
+        """Create a Time object form a datetime. If naive, then a time zone or an offset is required.
 
-        guessing = kwargs.pop('guessing', False)
-        given_tz = timezonize(kwargs.pop('tz', None))
-        given_offset = kwargs.pop('offset', None)
-        embedded_tz = None
-        embedded_offset = None
+        Please note that tz and offset arguments, if set to something else than "auto" when using a
+        timezone-aware (or offset-aware) datetime, will "move" it to the given time zone or offset.
 
-        # Handle value as datetime
-        if isinstance(value, datetime):
+        For example, ``Time.from_dt(dt(2023,5,6,13,45, tz='US/Eastern'), tz='Europe/Rome')`` will result
+        in the Time object corresponding to 2023-05-06 19:45:00 Europe/Rome.
 
-            # Handle naive datetime if it is the case
-            if not value.tzinfo:
+        Args:
+            dt (:obj:`datetime`): the datetime from which to create the new Time object.
+            tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
+            offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
+                to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
+            guessing (:obj:`bool`): if to enable guessing mode in case of ambiguous time specifications. Defaults to False.
+        """
 
-                # Look at the tz argument if any, and decorate
-                if given_tz:
-                    value = timezonize(given_tz).localize(value)
+        # Set given time zone and offset
+        given_offset = offset if offset != 'auto' else None
+        given_tz = tz if  tz != 'auto' else None
 
-                # Look at the offset argument if any, and decorate
-                elif given_offset is not None:
-                    value = pytz.UTC.localize(value).replace(tzinfo = tzoffset(None, given_offset))
-
-                # Otherwise, treat as UTC
-                else:
-                    value = pytz.UTC.localize(value)
-
-            # Now convert the (always timezone-aware) datetime
-            if isinstance(value.tzinfo, tzoffset):
-                embedded_offset = value.utcoffset().seconds
+        # Set embedded time zone and offset
+        if not dt.tzinfo:
+            embedded_offset = None
+            embedded_tz = None
+        else:
+            if isinstance(dt.tzinfo, tzoffset):
+                embedded_offset = get_offset_from_dt(dt)
+                embedded_tz = None
             else:
-                embedded_tz = value.tzinfo
-            value = s_from_dt(value)
+                embedded_offset = None
+                embedded_tz = dt.tzinfo
 
-        # Handle value as string
-        if isinstance(value, str):
+        # Handle naive datetime or extract time zone/offset
+        if not (embedded_offset or embedded_tz):
 
-            # Time string representation (e.g. "Time: 1698537600.0 (2023-10-29 02:00:00 Europe/Rome DST)")
-            if  value.startswith('Time: '):
-                value_string = value
-                parts = value.replace('(','').replace(')','').split(' ')
-                value = float(parts[1])
-                tz_or_offset = parts[4]
+            # Look at the tz argument if any, and decorate
+            if given_tz is not None:
+                dt = timezonize(given_tz).localize(dt)
+
+            # Look at the offset argument if any, and decorate
+            elif given_offset is not None:
+                dt = pytz.UTC.localize(dt).replace(tzinfo = tzoffset(None, given_offset))
+
+            # Otherwise, raise
+            else:
+                raise ValueError('Got a naive datetime, please set its time zone or offset')
+
+        # Check for potential ambiguity
+        if is_dt_ambiguous_without_offset(dt):
+            dt_naive = dt.replace(tzinfo=None)
+            if not guessing:
+                raise ValueError('Sorry, datetime {} is ambiguous on time zone {} without an offset'.format(dt_naive, dt.tzinfo))
+            else:
+                # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utilities
+                iso_time_part = str_from_dt(dt).split('T')[1]
+                if '+' in iso_time_part:
+                    offset_assumed = '+'+iso_time_part.split('+')[1]
+                else:
+                    offset_assumed = '-'+iso_time_part.split('-')[1]
+                logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(dt_naive, tz, offset_assumed))
+
+        # Now convert the (always time zone or offset -aware) datetime to seconds
+        s = s_from_dt(dt)
+
+        target_offset = None
+        target_tz = None
+
+        # Set target time zone and offset
+        if given_tz is not None:
+            target_tz = given_tz
+        else:
+            if embedded_tz is not None:
+                if given_offset is None:
+                    target_tz = embedded_tz
+
+        if given_offset is not None:
+            if given_tz is None: 
+                target_offset = given_offset
+        else:
+            if embedded_offset is not None:
+                if given_tz is None:
+                    target_offset = embedded_offset
+
+        # From "None" to "auto" (only for the offset)
+        if target_offset is None:
+            target_offset = 'auto'
+
+        # ..and create the new object
+        obj = cls(s, tz=target_tz, offset=target_offset)
+
+        # Lastly, if both time zone and offset were given, check for consistency
+        if given_tz is not None and given_offset is not None:
+            if obj.offset != given_offset:
+                raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(given_offset, target_tz) + 
+                                 '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(obj.offset))
+
+        return obj
+
+
+    @classmethod
+    def from_iso(cls, iso, tz='auto', offset='auto'):
+        """Create a Time object form an ISO 8601 string. If naive, then a time zone or an offset is required.
+
+        Please note that tz and offset arguments, if set to something else than "auto" when using a
+        UTC-aware (or offset-aware) ISO string, will "move" it to the given time zone or offset.
+
+        For example, ``Time.from_iso('2023-12-25T16:12:00+01:00', tz='US/Eastern')`` will result
+        in the Time object corresponding to 2023-12-25 10:12:00 US/Eastern.
+
+        Args:
+            dt (:obj:`datetime`): the datetime from which to create the new Time object.
+            tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
+            offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
+                to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
+        """
+
+        # Set given time zone and offset
+        given_offset = offset if offset != 'auto' else None
+        given_tz = tz if  tz != 'auto' else None
+
+        # By default there is no embedded time zone or offset
+        embedded_offset = None
+        embedded_tz = None
+
+        # Handle naive iso
+        if not (iso[-1] == 'Z' or '+' in iso or ('-' in iso and '-' in iso.split('T')[1])):
+
+            # Look at the tz argument if any, and use it
+            if given_tz:
+                dt = dt_from_str(iso, tz=given_tz)
+
+            # Look at the offset argument if any, and use it
+            elif given_offset is not None:
+                dt = dt_from_str(iso, tz=tzoffset(None, given_offset))
+
+            # Otherwise, raise
+            else:
+                raise ValueError('Got a naive ISO string, please set its time zone or offset')
+
+        else:
+            dt = dt_from_str(iso)
+
+            # Handle embedded time zone (only Zulu, which is UTC) or offset 
+            if iso[-1] == 'Z':
+                embedded_tz = pytz.UTC
+            else:
+                embedded_offset = dt.utcoffset().seconds
+
+        # Now convert the (always time zone or offset -aware) datetime to seconds
+        s = s_from_dt(dt)
+
+        target_offset = None
+        target_tz = None
+
+        # Set target time zone and offset
+        if given_tz is not None:
+            target_tz = given_tz
+        else:
+            if embedded_tz is not None:
+                if given_offset is None:
+                    target_tz = embedded_tz
+
+        if given_offset is not None:
+            if given_tz is None: 
+                target_offset = given_offset
+        else:
+            if embedded_offset is not None:
+                if given_tz is None:
+                    target_offset = embedded_offset
+
+        # From "None" to "auto" (only for the offset)
+        if target_offset is None:
+            target_offset = 'auto'
+
+        # ..and create the new object
+        obj = cls(s, tz=target_tz, offset=target_offset)
+
+        # Lastly, if both time zone and offset were given, check for consistency
+        if given_tz is not None and given_offset is not None:
+            if obj.offset != given_offset:
+                raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(given_offset, target_tz) + 
+                                 '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(obj.offset))
+
+        return obj
+
+
+    def __new__(cls, *args, tz='UTC', offset='auto', guessing=False):
+
+        # Timezonize the time zone
+        tz = timezonize(tz)
+
+        # Check offset and ensure as seconds
+        if offset != 'auto' and offset is None:
+            raise ValueError('Offset cannot be None if set')
+        if offset != 'auto' and isinstance(offset, tzoffset):
+            raise NotImplementedError('offsets as tzoffsets not implemented yet')
+            #offset = get_offset_from_tzoffset()
+
+        # Handle no arguments: current time
+        if len(args) == 0:
+            s = now_s()
+
+        # Handle single argument case: Time as string or float
+        elif len(args) == 1:
+
+            # Time as string representation 
+            if isinstance(args[0], str):
+                embedded_tz = None
+                embedded_offset = None
+
+                # Parse, e.g. "Time: 1698537600.0 (2023-10-29 02:00:00 Europe/Rome DST)"
                 try:
-                    given_tz = timezonize(tz_or_offset)
+                    parts = args[0].replace('(','').replace(')','').split(' ')
+                    s = float(parts[1])
+                    tz_or_offset = parts[4]
+                except IndexError:
+                    raise ValueError('Unknow Time string format "{}"'.format(args[0])) from None
+                try:
+                    embedded_tz = timezonize(tz_or_offset)
                 except:
                     offset_as_datetime = datetime.strptime(tz_or_offset[1:],'%H:%M')
                     offset_as_timedelta = timedelta(hours=offset_as_datetime.hour, minutes=offset_as_datetime.minute)
@@ -108,107 +274,64 @@ class Time(float):
                     elif tz_or_offset.startswith('-'):
                         offset_sign = -1
                     else:
-                        raise ValueError('Unknow Time string format "{}"'.format(value)) from None
-                    given_offset = offset_as_timedelta.total_seconds() * offset_sign
+                        raise ValueError('Unknow Time string format "{}"'.format(args[0])) from None
+                    embedded_offset = offset_as_timedelta.total_seconds() * offset_sign
 
                 # Ensure consistency now
-                if value_string != str(Time(value, tz=given_tz, offset=given_offset)):
-                    raise ValueError('Inconsistent Time string format "{}"'.format(value)) from None
+                if args[0] != str(Time(s, tz=embedded_tz, offset=embedded_offset if embedded_offset is not None else 'auto')):
+                    raise ValueError('Inconsistent Time string format "{}"'.format(args[0])) from None
 
-            # Other (ISO) string format
+            # Time as float
             else:
-                # Handle naive string if it is the case
-                if not (value[-1] == 'Z' or '+' in value or ('-' in value and '-' in value.split('T')[1])):
-
-                    # Look at the tz argument if any, and use it
-                    if given_tz:
-                        converted_dt = dt_from_str(value, tz=given_tz)
-
-                    # Look at the offset argument if any, and use it
-                    elif given_offset is not None:
-                        converted_dt = dt_from_str(value, tz=tzoffset(None, given_offset))
-
-                    # Otherwise, treat as UTC
-                    else:
-                        converted_dt = dt_from_str(value+'Z')
-
-                else:
-                    converted_dt = dt_from_str(value)
-
-                    # Handle embedded time zone (only Zulu, which is UTC) or offset 
-                    if value[-1] == 'Z':
-                        embedded_tz = pytz.UTC
-                    else:
-                        embedded_offset = converted_dt.utcoffset().seconds
-
-                # Now convert the (always offset-aware) datetime converted from the string
-                value = s_from_dt(converted_dt)
+                try:
+                    s = float(args[0])
+                except:
+                    raise ValueError('Don\'t know how to create Time from "{}" of type "{}"'.format(args[0], args[0].__class__.__name__)) from None
 
 
-        # Handle no value -> current time
-        elif value is None:
-            value = now_s()
-
-        # Detect classic datetime-like init
+        # Handle datetime-like init
         elif len(args) > 0:
             try:
-                if given_tz:
-                    # Time zone, set, check if also the offset was
-                    if given_offset is not None:
-                        value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), guessing=guessing).astimezone(given_tz))
-                    else:
-                        value = s_from_dt(dt(value, *args, tz=given_tz, guessing=guessing))
-
-                elif given_offset is not None:
-                    # Offset set
-                    value = s_from_dt(dt(value, *args, tz=tzoffset(None, given_offset), guessing=guessing))
-
+                if tz is not None:
+                    s = s_from_dt(dt(*args, tz=tz, guessing=guessing))
+                elif offset != 'auto':
+                    s = s_from_dt(dt(*args, tz=tzoffset(None, offset)))
                 else:
-                    # Nothing set, treat as UTC
-                    value = s_from_dt(dt(value, *args, tz='UTC', guessing=guessing))
+                    raise ConsistencyError('No time zone nor offset set?')
 
             except ValueError as e:
-                # TODO: improve this? e.g. AmbiguousVauleError?
+                # TODO: improve this? e.g. AmbiguousValueError?
                 if 'ambiguous' in str(e):
-                    raise ValueError('{}. Use guessing=True to allow creating it with a guess.'.format(e)) from None
+
+                    # Can we use the offset to remove the ambiguity?
+                    if offset != 'auto':
+                        s = s_from_dt(dt(*args, tz=tzoffset(None, offset), guessing=guessing))
+                    else:
+                        raise ValueError('{}. Use guessing=True to allow creating it with a guess.'.format(e)) from None
                 else:
                     raise e from None
 
-        # Check float-compatible value type
-        else:
-            try:
-                float(value)
-            except:
-                raise ValueError('Don\'t know how to create Time from "{}" of type "{}"'.format(value, value.__class__.__name__))
+        # Ok, now create the new instance as float
+        time_instance = super().__new__(cls, s)
 
-        # Create the new instance
-        time_instance = super().__new__(cls, value)
+        # Handle time zone and offset
+        if tz is not None:
 
-        # Handle time zone & offset arguments. Can override "value" (string/datetime) ones.
-        if kwargs:
-            raise ValueError('Unhandled kwargs: {}'.format(kwargs))
-
-        if given_tz or (embedded_tz is not None and given_offset is None):
-
-            # Set time zone, and also the offset
-            tz = given_tz if given_tz else embedded_tz
-            time_instance._tz = timezonize(tz)
-            _dt = dt_from_s(value, tz=time_instance._tz)
+            # Set the time zone and compute the time zone out from the time zone
+            time_instance._tz = tz
+            _dt = dt_from_s(s, tz=time_instance._tz)
             sign = -1 if _dt.utcoffset().days < 0 else 1 
             time_instance._offset = sign * _dt.utcoffset().seconds
 
-        elif given_offset is not None or (embedded_offset is not None and not given_tz):
-
+            # If there was also an offset set, check consistency:
+            if offset != 'auto':
+                if time_instance._offset != offset:
+                    raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(offset, tz) + 
+                                     '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(time_instance._offset))
+        else:
             # Set only the offset
-            offset = given_offset if given_offset is not None else embedded_offset
             time_instance._tz = None
             time_instance._offset = offset
-
-        else:
-
-            # Otherwise, default to UTC
-            time_instance._tz = pytz.UTC
-            time_instance._offset = 0
 
         return time_instance
 
@@ -254,11 +377,14 @@ class Time(float):
         try:
             return self._dt
         except AttributeError:
-            if self.tz:
-                self._dt = dt_from_s(self, tz=self.tz)
-            else:
-                self._dt = dt_from_s(self, tz=tzoffset(None, self.offset))
-            return self._dt
+            try:
+                if self.tz:
+                    self._dt = dt_from_s(self, tz=self.tz)
+                else:
+                    self._dt = dt_from_s(self, tz=tzoffset(None, self.offset))
+                return self._dt
+            except Exception as e:
+                raise e.__class__('{} (time as float: "{}", offset: "{}", tz: "{}")'.format(e, float(self), self.offset, self.tz)) from None
 
     def iso(self):
         """Return time as a string in ISO 8601 format."""
@@ -481,7 +607,7 @@ class TimeUnit:
             return self.shift(other, times=1)
 
         elif isinstance(other, Time):
-            return Time(self.shift(other.dt(), times=1))
+            return Time.from_dt(self.shift(other.dt(), times=1))
 
         elif is_numerical(other):
             return other + self.as_seconds()
