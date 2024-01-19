@@ -18,7 +18,7 @@
    .. autosummary::
    
       Time
-      TimeUnit
+      TimeSpan
    
    
 

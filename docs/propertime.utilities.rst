@@ -18,6 +18,7 @@
       dt
       dt_from_s
       dt_from_str
+      get_offset_from_dt
       get_tz_offset
       is_dt_ambiguous_without_offset
       is_dt_inconsistent

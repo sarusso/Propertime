@@ -4,7 +4,7 @@ import unittest
 import pytz
 from datetime import datetime
 from ..utilities import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, now_s
-from ..time import Time, TimeUnit
+from ..time import Time, TimeSpan
 from dateutil.tz.tz import tzoffset
 try:
     from zoneinfo import ZoneInfo
@@ -79,7 +79,7 @@ class TestTime(unittest.TestCase):
         # Time with time zone
         time = Time(1702928535.0, tz='America/New_York')
         self.assertEqual(str(time.tz), 'America/New_York')
-        self.assertEqual(time.offset, -68400)
+        self.assertEqual(time.offset, -18000)
 
         time = Time(1702928535.0, tz='Europe/Rome')
         self.assertEqual(str(time.tz), 'Europe/Rome')
@@ -174,6 +174,8 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time), 'Time: 1698538500.0 (2023-10-29 02:15:00 Europe/Rome DST)')
         self.assertEqual(time.to_iso(), '2023-10-29T02:15:00+02:00')
 
+        time = Time(2023,11,5,1,15,0, offset=-3600*4, tz='America/New_York')
+        print(time)
 
     def test_conversions(self):
 
@@ -259,7 +261,10 @@ class TestTime(unittest.TestCase):
 
         # Ambiguous time
         with self.assertRaises(ValueError):
-            print(Time.from_dt(timezonize('Europe/Rome').localize(datetime(2023,10,29,2,15,0))))
+            Time.from_dt(datetime(2023,10,29,2,15,0), tz='Europe/Rome')
+
+        # This is not ambiguous for the from_dt method. It was for the .localize().
+        time = Time.from_dt(timezonize('Europe/Rome').localize(datetime(2023,10,29,2,15,0)))
 
         # Ambiguous time with guessing enabled (just raises a warning)
         time = Time(2023,10,29,2,15,0, tz='Europe/Rome', guessing=True)
@@ -335,7 +340,7 @@ class TestTime(unittest.TestCase):
         time = Time.from_iso('1986-08-01T16:46:00+02:00', tz='America/New_York')
         self.assertEqual(time, 523291560.0)
         self.assertEqual(str(time.tz), 'America/New_York')
-        self.assertEqual(time.offset, -72000)
+        self.assertEqual(time.offset, -14400)
 
         # Time from string with an offset and both an extra offset and time zone as arguments
         # Expected behavior: move to the given time zone, check offset compatibility
@@ -356,7 +361,7 @@ class TestTime(unittest.TestCase):
         with self.assertRaises(ValueError):
             Time.from_iso('2023-06-11T17:56:00+03:00', offset=10800, tz='Europe/Rome') # 14:56 UTC
 
-        # Extra check for otherwise ambiguous time (TODO: maybe move elsewhere?)
+        # Extra check for otherwise ambiguous time
         time = Time.from_iso('2023-10-29T02:15:00+01:00', tz='Europe/Rome')
         self.assertEqual(str(time), 'Time: 1698542100.0 (2023-10-29 02:15:00 Europe/Rome)')
 
@@ -456,101 +461,107 @@ class TestTime(unittest.TestCase):
 
 
 
-class TestTimeUnits(unittest.TestCase):
+class TestTimeSpans(unittest.TestCase):
 
-    def test_TimeUnit(self):
+    def test_TimeSpan(self):
 
         with self.assertRaises(ValueError):
-            _ = TimeUnit('15m', '20s')
+            _ = TimeSpan('15m', '20s')
 
         # Not valid 'q' type
         with self.assertRaises(ValueError):
-            _ = TimeUnit('15q')
+            _ = TimeSpan('15q')
 
         # Numerical init
-        time_unit_1 = TimeUnit(60)
-        self.assertEqual(str(time_unit_1), '60s')
+        time_span_1 = TimeSpan(seconds=60)
+        self.assertEqual(str(time_span_1), '60s')
 
         # String init
-        time_unit_1 = TimeUnit('15m')
-        self.assertEqual(str(time_unit_1), '15m')
+        time_span_1 = TimeSpan('15m')
+        self.assertEqual(str(time_span_1), '15m')
 
-        time_unit_2 = TimeUnit('15m_30s_3u')
-        self.assertEqual(str(time_unit_2), '15m_30s_3u')
+        time_span_2 = TimeSpan('15m_30s_3u')
+        self.assertEqual(str(time_span_2), '15m_30s_3u')
 
         # Components init
-        self.assertEqual(TimeUnit(days=1).days, 1)
-        self.assertEqual(TimeUnit(years=2).years, 2)
-        self.assertEqual(TimeUnit(minutes=1).minutes, 1)
-        self.assertEqual(TimeUnit(minutes=15).minutes, 15)
-        self.assertEqual(TimeUnit(hours=1).hours, 1)
+        self.assertEqual(TimeSpan(days=1).days, 1)
+        self.assertEqual(TimeSpan(years=2).years, 2)
+        self.assertEqual(TimeSpan(minutes=1).minutes, 1)
+        self.assertEqual(TimeSpan(minutes=15).minutes, 15)
+        self.assertEqual(TimeSpan(hours=1).hours, 1)
 
         # Test various init and correct handling of time componentes
-        self.assertEqual(TimeUnit('1D').days, 1)
-        self.assertEqual(TimeUnit('2Y').years, 2)
-        self.assertEqual(TimeUnit('1m').minutes, 1)
-        self.assertEqual(TimeUnit('15m').minutes, 15)
-        self.assertEqual(TimeUnit('1h').hours, 1)
+        self.assertEqual(TimeSpan('1D').days, 1)
+        self.assertEqual(TimeSpan('2Y').years, 2)
+        self.assertEqual(TimeSpan('1m').minutes, 1)
+        self.assertEqual(TimeSpan('15m').minutes, 15)
+        self.assertEqual(TimeSpan('1h').hours, 1)
 
         # Test floating point seconds init
-        self.assertEqual(TimeUnit('1.2345s').as_seconds(), 1.2345)
-        self.assertEqual(TimeUnit('1.234s').as_seconds(), 1.234)
-        self.assertEqual(TimeUnit('1.02s').as_seconds(), 1.02)
-        self.assertEqual(TimeUnit('1.000005s').as_seconds(), 1.000005)
-        self.assertEqual(TimeUnit('67.000005s').seconds, 67)
-        self.assertEqual(TimeUnit('67.000005s').microseconds, 5)
+        self.assertEqual(TimeSpan('1.2345s').as_seconds(), 1.2345)
+        self.assertEqual(TimeSpan('1.234s').as_seconds(), 1.234)
+        self.assertEqual(TimeSpan('1.02s').as_seconds(), 1.02)
+        self.assertEqual(TimeSpan('1.000005s').as_seconds(), 1.000005)
+        self.assertEqual(TimeSpan('67.000005s').seconds, 67)
+        self.assertEqual(TimeSpan('67.000005s').microseconds, 5)
 
         # Too much precision (below microseconds), gets cut
-        time_unit = TimeUnit('1.0000005s')
-        self.assertEqual(str(time_unit),'1s')
-        time_unit = TimeUnit('1.0000065s')
-        self.assertEqual(str(time_unit),'1s_6u')
+        time_span = TimeSpan('1.0000005s')
+        self.assertEqual(str(time_span),'1s')
+        time_span = TimeSpan('1.0000065s')
+        self.assertEqual(str(time_span),'1s_6u')
 
-        # Test unit values
-        self.assertEqual(TimeUnit(600).value, '600s') # Int converted to string representation
-        self.assertEqual(TimeUnit(600.0).value, '600s') # Float converted to string representation
-        self.assertEqual(TimeUnit(600.45).value, '600s_450000u') # Float converted to string representation (using microseconds)
+        # Test span values
+        self.assertEqual(TimeSpan(seconds=600).value, '600s') # Int converted to string representation
+        self.assertEqual(TimeSpan(seconds=600.0).value, '600s') # Float converted to string representation
+        self.assertEqual(TimeSpan(seconds=600.45).value, '600s_450000u') # Float converted to string representation (using microseconds)
+        self.assertEqual(TimeSpan(seconds=600.456).value, '600s_456000u') # Float converted to string representation (using microseconds)
 
-        self.assertEqual(TimeUnit(days=1).value, '1D')
-        self.assertEqual(TimeUnit(years=2).value, '2Y')
-        self.assertEqual(TimeUnit(minutes=1).value, '1m')
-        self.assertEqual(TimeUnit(minutes=15).value, '15m')
-        self.assertEqual(TimeUnit(hours=1).value, '1h')
+        self.assertEqual(TimeSpan(days=1).value, '1D')
+        self.assertEqual(TimeSpan(years=2).value, '2Y')
+        self.assertEqual(TimeSpan(minutes=1).value, '1m')
+        self.assertEqual(TimeSpan(minutes=15).value, '15m')
+        self.assertEqual(TimeSpan(hours=1).value, '1h')
 
-        self.assertEqual(time_unit_1.value, '15m')
-        self.assertEqual(time_unit_2.value, '15m_30s_3u') 
-        self.assertEqual(TimeUnit(days=1).value, '1D') # This is obtained using the unit's string representation
+        self.assertEqual(time_span_1.value, '15m')
+        self.assertEqual(time_span_2.value, '15m_30s_3u')
+        self.assertEqual(TimeSpan(days=1).value, '1D') # This is obtained using the span's string representation
 
-        # Test unit equalities and inequalities 
-        self.assertTrue(TimeUnit(hours=1) == TimeUnit(hours=1))
-        self.assertTrue(TimeUnit(hours=1) == '1h')
-        self.assertFalse(TimeUnit(hours=1) == TimeUnit(hours=2))
-        self.assertFalse(TimeUnit(hours=1) == 'a_string')
+        # Test span simple equalities and inequalities
+        self.assertEqual(TimeSpan(hours=1), TimeSpan(hours=1))
+        self.assertEqual(TimeSpan(hours=1), '1h')
+        self.assertNotEqual(TimeSpan(hours=1), TimeSpan(hours=2))
+        self.assertNotEqual(TimeSpan(hours=1), 'a_string')
 
-        self.assertTrue(TimeUnit(days=1) == TimeUnit(days=1))
-        self.assertTrue(TimeUnit(days=1) == '1D')
-        self.assertFalse(TimeUnit(days=1) == TimeUnit(days=2))
-        self.assertFalse(TimeUnit(days=1) == 'a_string')
+        self.assertEqual(TimeSpan(days=1), TimeSpan(days=1))
+        self.assertEqual(TimeSpan(days=1), '1D')
+        self.assertNotEqual(TimeSpan(days=1), TimeSpan(days=2))
+        self.assertNotEqual(TimeSpan(days=1), 'a_string')
 
-        self.assertFalse(TimeUnit('86400s') == TimeUnit('1D'))
+        # Test span composite equalities and inequalities
+        self.assertEqual(TimeSpan('1h'), TimeSpan('3600s'))
+        self.assertEqual(TimeSpan('1h'), TimeSpan(hours=1))
+
+        self.assertNotEqual(TimeSpan('24h'), TimeSpan('1D'))
+        self.assertNotEqual(TimeSpan('86400s'), TimeSpan('1D'))
 
 
-    def test_TimeUnit_math(self):
+    def test_TimeSpan_math(self):
 
-        time_unit_1 = TimeUnit('15m')
-        time_unit_2 = TimeUnit('15m_30s_3u')
-        time_unit_3 = TimeUnit(days=1)
+        time_span_1 = TimeSpan('15m')
+        time_span_2 = TimeSpan('15m_30s_3u')
+        time_span_3 = TimeSpan(days=1)
 
-        # Sum with other TimeUnit objects
-        self.assertEqual(str(time_unit_1+time_unit_2+time_unit_3), '1D_30m_30s_3u')
+        # Sum with other TimeSpan objects
+        self.assertEqual(str(time_span_1+time_span_2+time_span_3), '1D_30m_30s_3u')
 
         # Sum with datetime (also on DST change)
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
         datetime1 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
-        datetime2 = datetime1 + time_unit
-        datetime3 = datetime2 + time_unit
-        datetime4 = datetime3 + time_unit
-        datetime5 = datetime4 + time_unit
+        datetime2 = datetime1 + time_span
+        datetime3 = datetime2 + time_span
+        datetime4 = datetime3 + time_span
+        datetime5 = datetime4 + time_span
 
         self.assertEqual(str(datetime1), '2015-10-25 00:15:00+02:00')
         self.assertEqual(str(datetime2), '2015-10-25 01:15:00+02:00')
@@ -559,29 +570,29 @@ class TestTimeUnits(unittest.TestCase):
         self.assertEqual(str(datetime5), '2015-10-25 03:15:00+01:00')
 
         # Sum with a numerical value
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
         epoch1 = 3600
-        self.assertEqual(epoch1 + time_unit, 7200)
+        self.assertEqual(epoch1 + time_span, 7200)
 
-        # Subtract to other TimeUnit object
+        # Subtract to other TimeSpan object
         with self.assertRaises(NotImplementedError):
-            time_unit_1 - time_unit_2
+            time_span_1 - time_span_2
 
         # Subtract to a datetime object
         with self.assertRaises(NotImplementedError):
-            time_unit_1 - datetime1
+            time_span_1 - datetime1
 
         # In general, subtracting to anything is not implemented
         with self.assertRaises(NotImplementedError):
-            time_unit_1 - 'hello'
+            time_span_1 - 'hello'
 
         # Subtract from a datetime (also on DST change)
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
         datetime1 = dt(2015,10,25,3,15,0, tz='Europe/Rome')
-        datetime2 = datetime1 - time_unit
-        datetime3 = datetime2 - time_unit
-        datetime4 = datetime3 - time_unit
-        datetime5 = datetime4 - time_unit
+        datetime2 = datetime1 - time_span
+        datetime3 = datetime2 - time_span
+        datetime4 = datetime3 - time_span
+        datetime5 = datetime4 - time_span
 
         self.assertEqual(str(datetime1), '2015-10-25 03:15:00+01:00')
         self.assertEqual(str(datetime2), '2015-10-25 02:15:00+01:00')
@@ -590,236 +601,242 @@ class TestTimeUnits(unittest.TestCase):
         self.assertEqual(str(datetime5), '2015-10-25 00:15:00+02:00')
 
         # Subtract from a numerical value
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
         epoch1 = 7200
-        self.assertEqual(epoch1 - time_unit, 3600)
+        self.assertEqual(epoch1 - time_span, 3600)
 
         # Test sum with Time
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
         time = Time(60)
-        self.assertEqual((time+time_unit), 3660)
+        self.assertEqual((time+time_span), 3660)
 
         # Test equal
-        time_unit_1 = TimeUnit('15m')
-        self.assertEqual(time_unit_1, 900)
+        time_span_1 = TimeSpan('15m')
+        self.assertEqual(time_span_1, 900)
 
 
-    def test_TimeUnit_types(self):
-
-        # Test type
-        self.assertEqual(TimeUnit('15m').type, TimeUnit._PHYSICAL)
-        self.assertEqual(TimeUnit('1h').type, TimeUnit._PHYSICAL)
-        self.assertEqual(TimeUnit('1D').type, TimeUnit._CALENDAR)
-        self.assertEqual(TimeUnit('1M').type, TimeUnit._CALENDAR)
-
-
-    def test_TimeUnit_duration(self):
+    def test_TimeSpan_duration(self):
 
         datetime1 = dt(2015,10,24,0,15,0, tz='Europe/Rome')
         datetime2 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
         datetime3 = dt(2015,10,26,0,15,0, tz='Europe/Rome')
  
-        # Day unit
-        time_unit = TimeUnit('1D')
+        # Day span
+        time_span = TimeSpan('1D')
         with self.assertRaises(ValueError):
-            time_unit.as_seconds()
-        self.assertEqual(time_unit.as_seconds(datetime1), 86400) # No DST, standard day
-        self.assertEqual(time_unit.as_seconds(datetime2), 90000) # DST, change
+            time_span.as_seconds()
+        self.assertEqual(time_span.as_seconds(datetime1), 86400) # No DST, standard day
+        self.assertEqual(time_span.as_seconds(datetime2), 90000) # DST, change
 
-        # Week unit
-        time_unit = TimeUnit('1W')
+        # Week span
+        time_span = TimeSpan('1W')
         with self.assertRaises(ValueError):
-            time_unit.as_seconds()
-        self.assertEqual(time_unit.as_seconds(datetime1), (86400*7)+3600)
-        self.assertEqual(time_unit.as_seconds(datetime3), (86400*7))
+            time_span.as_seconds()
+        self.assertEqual(time_span.as_seconds(datetime1), (86400*7)+3600)
+        self.assertEqual(time_span.as_seconds(datetime3), (86400*7))
 
-        # Month Unit
-        time_unit = TimeUnit('1M')
+        # Month span
+        time_span = TimeSpan('1M')
         with self.assertRaises(ValueError):
-            time_unit.as_seconds()
-        self.assertEqual(time_unit.as_seconds(datetime3), (86400*31)) # October has 31 days so next month same day has 31 full days
-        self.assertEqual(time_unit.as_seconds(datetime1), ((86400*31)+3600)) # Same as above, but in this case we have a DST change in the middle
+            time_span.as_seconds()
+        self.assertEqual(time_span.as_seconds(datetime3), (86400*31)) # October has 31 days so next month same day has 31 full days
+        self.assertEqual(time_span.as_seconds(datetime1), ((86400*31)+3600)) # Same as above, but in this case we have a DST change in the middle
 
-        # Year Unit
-        time_unit = TimeUnit('1Y')
+        # Year span
+        time_span = TimeSpan('1Y')
         with self.assertRaises(ValueError):
-            time_unit.as_seconds()
-        self.assertEqual(time_unit.as_seconds(dt(2014,10,24,0,15,0, tz='Europe/Rome')), (86400*365)) # Standard year
-        self.assertEqual(time_unit.as_seconds(dt(2015,10,24,0,15,0, tz='Europe/Rome')), (86400*366)) # Leap year
+            time_span.as_seconds()
+        self.assertEqual(time_span.as_seconds(dt(2014,10,24,0,15,0, tz='Europe/Rome')), (86400*365)) # Standard year
+        self.assertEqual(time_span.as_seconds(dt(2015,10,24,0,15,0, tz='Europe/Rome')), (86400*366)) # Leap year
 
         # Test duration with composite seconds init
-        self.assertEqual(TimeUnit(minutes=1, seconds=3).as_seconds(), 63)
+        self.assertEqual(TimeSpan(minutes=1, seconds=3).as_seconds(), 63)
 
 
-    def test_TimeUnit_shift(self):
+    def test_TimeSpan_shift(self):
 
         datetime1 = dt(2015,10,24,0,15,0, tz='Europe/Rome')
         datetime2 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
         datetime3 = dt(2015,10,26,0,15,0, tz='Europe/Rome')
 
-        # Day unit
-        time_unit = TimeUnit('1D')
-        self.assertEqual(time_unit.shift(datetime1), dt(2015,10,25,0,15,0, tz='Europe/Rome')) # No DST, standard day
-        self.assertEqual(time_unit.shift(datetime2), dt(2015,10,26,0,15,0, tz='Europe/Rome')) # DST, change
+        # Day span
+        time_span = TimeSpan('1D')
+        self.assertEqual(time_span.shift(datetime1), dt(2015,10,25,0,15,0, tz='Europe/Rome')) # No DST, standard day
+        self.assertEqual(time_span.shift(datetime2), dt(2015,10,26,0,15,0, tz='Europe/Rome')) # DST, change
 
-        # Day unit on not-existent hour due to DST
+        # Day span on not-existent hour due to DST
         starting_dt = dt(2023,3,25,2,15, tz='Europe/Rome')
         with self.assertRaises(ValueError):
-            starting_dt + TimeUnit('1D')
+            starting_dt + TimeSpan('1D')
 
-        # Day unit on ambiguous hour due to DST
+        # Day span on ambiguous hour due to DST
         starting_dt = dt(2023,10,28,2,15, tz='Europe/Rome')
         with self.assertRaises(ValueError):
-            starting_dt + TimeUnit('1D')
+            starting_dt + TimeSpan('1D')
 
-        # Week unit
-        time_unit = TimeUnit('1W')
-        self.assertEqual(time_unit.shift(datetime1), dt(2015,10,31,0,15,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.shift(datetime3), dt(2015,11,2,0,15,0, tz='Europe/Rome'))
+        # Week span
+        time_span = TimeSpan('1W')
+        self.assertEqual(time_span.shift(datetime1), dt(2015,10,31,0,15,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.shift(datetime3), dt(2015,11,2,0,15,0, tz='Europe/Rome'))
 
-        # Month Unit
-        time_unit = TimeUnit('1M')
-        self.assertEqual(time_unit.shift(datetime1), dt(2015,11,24,0,15,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.shift(datetime2), dt(2015,11,25,0,15,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.shift(datetime3), dt(2015,11,26,0,15,0, tz='Europe/Rome'))
+        # Month span
+        time_span = TimeSpan('1M')
+        self.assertEqual(time_span.shift(datetime1), dt(2015,11,24,0,15,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.shift(datetime2), dt(2015,11,25,0,15,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.shift(datetime3), dt(2015,11,26,0,15,0, tz='Europe/Rome'))
 
         # Test 12%12 must give 12 edge case
-        self.assertEqual(time_unit.shift(dt(2015,1,1,0,0,0, tz='Europe/Rome')), dt(2015,2,1,0,0,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.shift(dt(2015,11,1,0,0,0, tz='Europe/Rome')), dt(2015,12,1,0,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.shift(dt(2015,1,1,0,0,0, tz='Europe/Rome')), dt(2015,2,1,0,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.shift(dt(2015,11,1,0,0,0, tz='Europe/Rome')), dt(2015,12,1,0,0,0, tz='Europe/Rome'))
 
-        # Year Unit
-        time_unit = TimeUnit('1Y')
-        self.assertEqual(time_unit.shift(datetime1), dt(2016,10,24,0,15,0, tz='Europe/Rome'))
+        # Year span
+        time_span = TimeSpan('1Y')
+        self.assertEqual(time_span.shift(datetime1), dt(2016,10,24,0,15,0, tz='Europe/Rome'))
 
 
-    def test_TimeUnit_operations(self):
+    def test_TimeSpan_operations(self):
 
-        # Test that complex time_units are not handable
-        time_unit = TimeUnit('1D_3h_5m')
+        # Test that complex time_spans are not handable
+        time_span = TimeSpan('1D_3h_5m')
         datetime = dt(2015,1,1,16,37,14, tz='Europe/Rome')
 
         with self.assertRaises(ValueError):
-            _ = time_unit.floor(datetime)
+            _ = time_span.floor(datetime)
 
         # Test in ceil/floor/round normal conditions (days)
-        time_unit = TimeUnit('1D')
-        self.assertEqual(time_unit.ceil(dt(2023,11,25,10,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,11,26,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.floor(dt(2023,11,25,19,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,11,25,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.round(dt(2023,11,25,10,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,11,25,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.round(dt(2023,11,25,12,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,11,25,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.round(dt(2023,11,25,13,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,11,26,0,0,0, tz='Europe/Rome')))
+        time_span = TimeSpan('1D')
+        self.assertEqual(time_span.ceil(dt(2023,11,25,10,0,0, tz='Europe/Rome')), time_span.round(dt(2023,11,26,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.floor(dt(2023,11,25,19,0,0, tz='Europe/Rome')), time_span.round(dt(2023,11,25,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.round(dt(2023,11,25,10,0,0, tz='Europe/Rome')), time_span.round(dt(2023,11,25,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.round(dt(2023,11,25,12,0,0, tz='Europe/Rome')), time_span.round(dt(2023,11,25,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.round(dt(2023,11,25,13,0,0, tz='Europe/Rome')), time_span.round(dt(2023,11,26,0,0,0, tz='Europe/Rome')))
 
         # Test in ceil/floor/round across DST change (days)
-        time_unit = TimeUnit('1D')
-        self.assertEqual(time_unit.ceil(dt(2023,3,26,10,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,3,27,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.floor(dt(2023,3,26,19,0,0, tz='Europe/Rome')), time_unit.round(dt(2023,3,26,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.round(dt(2023,3,26,12,30,0, tz='Europe/Rome')), time_unit.round(dt(2023,3,26,0,0,0, tz='Europe/Rome')))
-        self.assertEqual(time_unit.round(dt(2023,3,26,12,31,0, tz='Europe/Rome')), time_unit.round(dt(2023,3,27,0,0,0, tz='Europe/Rome')))
+        time_span = TimeSpan('1D')
+        self.assertEqual(time_span.ceil(dt(2023,3,26,10,0,0, tz='Europe/Rome')), time_span.round(dt(2023,3,27,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.floor(dt(2023,3,26,19,0,0, tz='Europe/Rome')), time_span.round(dt(2023,3,26,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.round(dt(2023,3,26,12,30,0, tz='Europe/Rome')), time_span.round(dt(2023,3,26,0,0,0, tz='Europe/Rome')))
+        self.assertEqual(time_span.round(dt(2023,3,26,12,31,0, tz='Europe/Rome')), time_span.round(dt(2023,3,27,0,0,0, tz='Europe/Rome')))
 
         # Test in ceil/floor/round normal conditions (hours)
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
         datetime = dt(2015,1,1,16,37,14, tz='Europe/Rome')
-        self.assertEqual(time_unit.floor(datetime), dt(2015,1,1,16,0,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.ceil(datetime), dt(2015,1,1,17,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.floor(datetime), dt(2015,1,1,16,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.ceil(datetime), dt(2015,1,1,17,0,0, tz='Europe/Rome'))
 
         # Test in ceil/floor/round normal conditions (minutes)
-        time_unit = TimeUnit('15m')
+        time_span = TimeSpan('15m')
         datetime = dt(2015,1,1,16,37,14, tz='Europe/Rome')
-        self.assertEqual(time_unit.floor(datetime), dt(2015,1,1,16,30,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.ceil(datetime), dt(2015,1,1,16,45,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.floor(datetime), dt(2015,1,1,16,30,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.ceil(datetime), dt(2015,1,1,16,45,0, tz='Europe/Rome'))
 
         # Test ceil/floor/round in normal conditions (seconds)
-        time_unit = TimeUnit('30s')
+        time_span = TimeSpan('30s')
         datetime = dt(2015,1,1,16,37,14, tz='Europe/Rome') 
-        self.assertEqual(time_unit.floor(datetime), dt(2015,1,1,16,37,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.ceil(datetime), dt(2015,1,1,16,37,30, tz='Europe/Rome'))
+        self.assertEqual(time_span.floor(datetime), dt(2015,1,1,16,37,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.ceil(datetime), dt(2015,1,1,16,37,30, tz='Europe/Rome'))
 
         # Test ceil/floor/round across 1970-1-1 (minutes) 
-        time_unit = TimeUnit('5m')
+        time_span = TimeSpan('5m')
         datetime1 = dt(1969,12,31,23,57,29, tz='UTC') # epoch = -3601
         datetime2 = dt(1969,12,31,23,59,59, tz='UTC') # epoch = -3601
-        self.assertEqual(time_unit.floor(datetime1), dt(1969,12,31,23,55,0, tz='UTC'))
-        self.assertEqual(time_unit.ceil(datetime1), dt(1970,1,1,0,0, tz='UTC'))
-        self.assertEqual(time_unit.round(datetime1), dt(1969,12,31,23,55,0, tz='UTC'))
-        self.assertEqual(time_unit.round(datetime2), dt(1970,1,1,0,0, tz='UTC'))
+        self.assertEqual(time_span.floor(datetime1), dt(1969,12,31,23,55,0, tz='UTC'))
+        self.assertEqual(time_span.ceil(datetime1), dt(1970,1,1,0,0, tz='UTC'))
+        self.assertEqual(time_span.round(datetime1), dt(1969,12,31,23,55,0, tz='UTC'))
+        self.assertEqual(time_span.round(datetime2), dt(1970,1,1,0,0, tz='UTC'))
 
         # Test ceil/floor/round (3 hours-test)
-        time_unit = TimeUnit('3h')
+        time_span = TimeSpan('3h')
         datetime = dt(1969,12,31,23,0,1, tz='Europe/Rome') # negative epoch
-        self.assertEqual(time_unit.floor(datetime), dt(1969,12,31,23,0,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.ceil(datetime), dt(1970,1,1,2,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.floor(datetime), dt(1969,12,31,23,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.ceil(datetime), dt(1970,1,1,2,0, tz='Europe/Rome'))
 
         # Test ceil/floor/round across 1970-1-1 (together with the 2 hours-test, TODO: decouple) 
-        time_unit = TimeUnit('2h')
+        time_span = TimeSpan('2h')
         datetime1 = dt(1969,12,31,22,59,59, tz='Europe/Rome') # negative epoch
         datetime2 = dt(1969,12,31,23,0,1, tz='Europe/Rome') # negative epoch  
-        self.assertEqual(time_unit.floor(datetime1), dt(1969,12,31,22,0,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.ceil(datetime1), dt(1970,1,1,0,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.round(datetime1), dt(1969,12,31,22,0, tz='Europe/Rome'))
-        self.assertEqual(time_unit.round(datetime2), dt(1970,1,1,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.floor(datetime1), dt(1969,12,31,22,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.ceil(datetime1), dt(1970,1,1,0,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.round(datetime1), dt(1969,12,31,22,0, tz='Europe/Rome'))
+        self.assertEqual(time_span.round(datetime2), dt(1970,1,1,0,0, tz='Europe/Rome'))
 
         # Test ceil/floor/round across DST change (hours)
-        time_unit = TimeUnit('1h')
+        time_span = TimeSpan('1h')
 
         datetime1 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
-        datetime2 = datetime1 + time_unit    # 2015-10-25 01:15:00+02:00
-        datetime3 = datetime2 + time_unit    # 2015-10-25 02:15:00+02:00
-        datetime4 = datetime3 + time_unit    # 2015-10-25 02:15:00+01:00
+        datetime2 = datetime1 + time_span    # 2015-10-25 01:15:00+02:00
+        datetime3 = datetime2 + time_span    # 2015-10-25 02:15:00+02:00
+        datetime4 = datetime3 + time_span    # 2015-10-25 02:15:00+01:00
 
         datetime1_rounded = dt(2015,10,25,0,0,0, tz='Europe/Rome')
-        datetime2_rounded = datetime1_rounded + time_unit
-        datetime3_rounded = datetime2_rounded + time_unit
-        datetime4_rounded = datetime3_rounded + time_unit
-        datetime5_rounded = datetime4_rounded + time_unit
+        datetime2_rounded = datetime1_rounded + time_span
+        datetime3_rounded = datetime2_rounded + time_span
+        datetime4_rounded = datetime3_rounded + time_span
+        datetime5_rounded = datetime4_rounded + time_span
 
-        self.assertEqual(time_unit.floor(datetime2), datetime2_rounded)
-        self.assertEqual(time_unit.ceil(datetime2), datetime3_rounded)
+        self.assertEqual(time_span.floor(datetime2), datetime2_rounded)
+        self.assertEqual(time_span.ceil(datetime2), datetime3_rounded)
 
-        self.assertEqual(time_unit.floor(datetime3), datetime3_rounded)
-        self.assertEqual(time_unit.ceil(datetime3), datetime4_rounded)
+        self.assertEqual(time_span.floor(datetime3), datetime3_rounded)
+        self.assertEqual(time_span.ceil(datetime3), datetime4_rounded)
 
-        self.assertEqual(time_unit.floor(datetime4), datetime4_rounded)
-        self.assertEqual(time_unit.ceil(datetime4), datetime5_rounded)
+        self.assertEqual(time_span.floor(datetime4), datetime4_rounded)
+        self.assertEqual(time_span.ceil(datetime4), datetime5_rounded)
 
-        # Test ceil/floor/round with a calendar time unit and across a DST change
+        # Test ceil/floor/round with a calendar time span and across a DST change
 
-        # Day unit
-        time_unit = TimeUnit('1D')
+        # Day span
+        time_span = TimeSpan('1D')
 
         datetime1 = dt(2015,10,25,4,15,34, tz='Europe/Rome') # DST off (+01:00)
         datetime1_floor = dt(2015,10,25,0,0,0, tz='Europe/Rome') # DST on (+02:00)
         datetime1_ceil = dt(2015,10,26,0,0,0, tz='Europe/Rome') # DST off (+01:00)
 
-        self.assertEqual(time_unit.floor(datetime1), datetime1_floor)
-        self.assertEqual(time_unit.ceil(datetime1), datetime1_ceil)
+        self.assertEqual(time_span.floor(datetime1), datetime1_floor)
+        self.assertEqual(time_span.ceil(datetime1), datetime1_ceil)
 
-        # Week unit
-        time_unit = TimeUnit('1W')
+        # Week span
+        time_span = TimeSpan('1W')
 
         datetime1 = dt(2023,10,29,15,47, tz='Europe/Rome') # DST off (+01:00)
         datetime1_floor = dt(2023,10,23,0,0, tz='Europe/Rome') # DST on (+02:00)
         datetime1_ceil = dt(2023,10,30,0,0, tz='Europe/Rome') # DST off (+01:00)
 
-        self.assertEqual(time_unit.floor(datetime1), datetime1_floor)
-        self.assertEqual(time_unit.ceil(datetime1), datetime1_ceil)
+        self.assertEqual(time_span.floor(datetime1), datetime1_floor)
+        self.assertEqual(time_span.ceil(datetime1), datetime1_ceil)
 
-        # Month unit
-        time_unit = TimeUnit('1M')
+        # Month span
+        time_span = TimeSpan('1M')
 
         datetime1 = dt(2015,10,25,4,15,34, tz='Europe/Rome') # DST off (+01:00)
         datetime1_floor = dt(2015,10,1,0,0,0, tz='Europe/Rome') # DST on (+02:00)
         datetime1_ceil = dt(2015,11,1,0,0,0, tz='Europe/Rome') # DST off (+01:00)
 
-        self.assertEqual(time_unit.floor(datetime1), datetime1_floor)
-        self.assertEqual(time_unit.ceil(datetime1), datetime1_ceil)
+        self.assertEqual(time_span.floor(datetime1), datetime1_floor)
+        self.assertEqual(time_span.ceil(datetime1), datetime1_ceil)
 
-        # Year unit
-        time_unit = TimeUnit('1Y')
+        # Year span
+        time_span = TimeSpan('1Y')
 
         datetime1 = dt(2015,10,25,4,15,34, tz='Europe/Rome')
         datetime1_floor = dt(2015,1,1,0,0,0, tz='Europe/Rome')
         datetime1_ceil = dt(2016,1,1,0,0,0, tz='Europe/Rome')
 
-        self.assertEqual(time_unit.floor(datetime1), datetime1_floor)
-        self.assertEqual(time_unit.ceil(datetime1), datetime1_ceil)
+        self.assertEqual(time_span.floor(datetime1), datetime1_floor)
+        self.assertEqual(time_span.ceil(datetime1), datetime1_ceil)
 
+        # Lastly ensure everything works with Time as well:
+        TimeSpan('1D').round(Time(2023,10,29,16,0,0))
+        TimeSpan('1D').ceil(Time(2023,10,29,16,0,0))
+        TimeSpan('1D').floor(Time(2023,10,29,16,0,0))
+        TimeSpan('1D').shift(Time(2023,10,29,16,0,0))
+
+        # Test the "slider"
+        start = Time(2023,10,29,0,0,0, tz='Europe/Rome')
+        end = start + TimeSpan('1D')
+
+        slider = start
+        while slider < end:
+            slider = slider + TimeSpan('1h')
+
+        self.assertEqual(slider, end)

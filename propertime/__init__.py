@@ -1,1 +1,1 @@
-from .time import Time, TimeUnit
+from .time import Time, TimeSpan

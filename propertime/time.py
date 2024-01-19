@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Time and TimeUnit classes"""
+"""Time and TimeSpan classes"""
 
 import re
 import math
@@ -81,7 +81,7 @@ class Time(float):
                 embedded_tz = dt.tzinfo
 
         # Handle naive datetime or extract time zone/offset
-        if not (embedded_offset or embedded_tz):
+        if embedded_offset is None and embedded_tz is None:
 
             # Look at the tz argument if any, and decorate
             if given_tz is not None:
@@ -95,19 +95,19 @@ class Time(float):
             else:
                 raise ValueError('Got a naive datetime, please set its time zone or offset')
 
-        # Check for potential ambiguity
-        if is_dt_ambiguous_without_offset(dt):
-            dt_naive = dt.replace(tzinfo=None)
-            if not guessing:
-                raise ValueError('Sorry, datetime {} is ambiguous on time zone {} without an offset'.format(dt_naive, dt.tzinfo))
-            else:
-                # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utilities
-                iso_time_part = str_from_dt(dt).split('T')[1]
-                if '+' in iso_time_part:
-                    offset_assumed = '+'+iso_time_part.split('+')[1]
+            # Check for potential ambiguity
+            if is_dt_ambiguous_without_offset(dt):
+                dt_naive = dt.replace(tzinfo=None)
+                if not guessing:
+                    raise ValueError('Sorry, datetime {} is ambiguous on time zone {} without an offset'.format(dt_naive, dt.tzinfo))
                 else:
-                    offset_assumed = '-'+iso_time_part.split('-')[1]
-                logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(dt_naive, tz, offset_assumed))
+                    # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utilities
+                    iso_time_part = str_from_dt(dt).split('T')[1]
+                    if '+' in iso_time_part:
+                        offset_assumed = '+'+iso_time_part.split('+')[1]
+                    else:
+                        offset_assumed = '-'+iso_time_part.split('-')[1]
+                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(dt_naive, tz, offset_assumed))
 
         # Now convert the (always time zone or offset -aware) datetime to seconds
         s = s_from_dt(dt)
@@ -318,11 +318,15 @@ class Time(float):
         # Handle time zone and offset
         if tz is not None:
 
-            # Set the time zone and compute the time zone out from the time zone
+            # Set the time zone and compute the offset from the time zone
             time_instance._tz = tz
             _dt = dt_from_s(s, tz=time_instance._tz)
-            sign = -1 if _dt.utcoffset().days < 0 else 1 
-            time_instance._offset = sign * _dt.utcoffset().seconds
+            sign = -1 if _dt.utcoffset().days < 0 else 1
+            if sign >0:
+                _offset =  _dt.utcoffset().seconds
+            else:
+                _offset =  -((24*3600) - _dt.utcoffset().seconds)
+            time_instance._offset = _offset
 
             # If there was also an offset set, check consistency:
             if offset != 'auto':
@@ -440,14 +444,18 @@ class Time(float):
         raise NotImplementedError('It does not make sense to use imaginary numbers with time')
 
 
-class TimeUnit:
-    """A time unit object, that can have both fixed (physical) or variable (calendar) time length.
-    It can handle precision up to the microsecond and can be added and subtracted with numerical
-    values, Time and datetime objects, and other TimeUnits.
+class TimeSpan:
+    """A time span, that can have both fixed and variable time length (duration). Whether this
+    is variable or not, it depends if there are any calendar time components involved (years,
+    months, weeks and days).
 
-    Can be initialized both using a numerical value, a string representation, or by explicitly setting
-    years, months, weeks, days, hours, minutes, seconds and microseconds. In the string representation,
-    the mapping is as follows:
+    Time spans support many operations, and can be added and subtracted with numerical values, Time and
+    datetime objects, and other time spans.
+
+    Their initialization supports both string representations and explicitly setting the various
+    components: years, months, weeks, days, hours, minutes, seconds and microseconds.
+
+    In the string representation, the mapping is as follows:
 
         * ``'Y': 'years'``
         * ``'M': 'months'``
@@ -458,25 +466,78 @@ class TimeUnit:
         * ``'s': 'seconds'``
         * ``'u': 'microseconds'``
 
-    For example, to create a time unit of one hour, the following three are equivalent, where the
-    first one uses the numerical value, the second the string representation, and the third explicitly
-    sets the time component (hours in this case): ``TimeUnit('1h')``, ``TimeUnit(hours=1)``, or ``TimeUnit(3600)``.
-    Not all time units can be initialized using the numerical value, in particular calendar time units which can
-    have variable duration: a time unit of one day, or ``TimeUnit('1D')``, can last for 23, 24 or 24 hours depending
-    on DST changes. On the contrary, a ``TimeUnit('24h')`` will always last 24 hours and can be initialized as
-    ``TimeUnit(86400)`` as well. 
+    For example, to create a time span of one hour, the following four are equivalent:
+
+    .. code-block:: python
+
+        TimeSpan('1h') == TimeSpan('3600s') == TimeSpan(seconds=3600) == TimeSpan(hours=1)
+
+    The first two use the string representation, while the third and the fourth explicitly
+    set its components (hours and seconds, in this case).
+
+    To get the time span length, or duration, you can use the ``as_seconds()`` method:
+
+    .. code-block:: python
+
+        TimeSpan('1h').as_seconds()
+
+    However, as soon as a calendar component kicks in, the time span length becomes variable: a time span of one
+    day can last for 23, 24 or 24 hours (and thus 82800, 86400 and 90000 seconds) depending on DST changes.
+    Similarly, a month can have 28, 29, 30 or 31 days; and a year can have both 365 and 366 days.
+
+    Note indeed that:
+
+    .. code-block:: python
+
+        TimeSpan('24h') != TimeSpan('1D')
+
+    The length of a time span where one ore more calendar components are involved is therefore well defined only if
+    providing context about *when* it is applied:
+
+    .. code-block:: python
+
+        TimeSpan('1D').as_seconds(starting_at=some_time)
+
+    This is automatically handled when using time spans to perform operations, so that for example to get to tomorow's
+    same time of the day, you would just do:
+
+    .. code-block:: python
+
+        Time() + TimeSpan('1D')
+
+    ...and the time span will take care of computing the correct calendar arithmetic, including the DST change.
+    If you instead wanted to add exactly 24 hours, thus getting to a different time of the day if DST changed
+    within the time span, you would have used:
+
+    .. code-block:: python
+
+        Time() + TimeSpan('24h')
+
+    Lastly, when calendar components are involved, there might also be some undefined or ambiguous operations.
+    And exactly as it would happen if dividing a number by zero, they will cause an error:
+
+    .. code-block:: python
+
+        Time(2023,1,31) + TimeSpan(months=1)
+        # Error, the 31st of February does not exist
+
+        Time(2023,3,25,2,15,0, tz='Europe/Rome') + TimeSpan(days=1)
+        # Error, the 2:15 AM does not exist on Europe/Rome in the target day
+
+        Time(2023,10,28,2,15,0, tz='Europe/Rome') + TimeSpan(days=1)
+        # Error, there are two 2:15 AM on Europe/Rome in the target day
+
 
     Args:
-        value: the time unit value, either as seconds (float) or string representation according to the mapping above.  
-        years: the time unit years component.
-        weeks: the time unit weeks component.
-        months: the time unit weeks component.
-        days: the time unit days component.
-        hours: the time unit hours component.
-        minutes: the time unit minutes component.
-        seconds: the time unit seconds component.
-        microseconds: the time unit microseconds component.
-        trustme: a boolean switch to skip checks.
+        value (:obj:`str`, :obj:`tzinfo`): the time span value as string representation.
+        years (:obj:`int`): the time span years component.
+        weeks (:obj:`int`): the time span weeks component.
+        months (:obj:`int`): the time span weeks component.
+        days(:obj:`int`): the time span days component.
+        hours (:obj:`int`): the time span hours component.
+        minutes (:obj:`int`): the time span minutes component.
+        seconds (:obj:`int`, :obj:`float`): the time span seconds, possibly as float to include sub-second precision (up to the microsecond).
+        microseconds(:obj:`int`): the time span microseconds component.
     """
 
     _CALENDAR = 'Calendar'
@@ -496,36 +557,20 @@ class TimeUnit:
                        'u': 'microseconds'
                       }
 
-    def __init__(self, value=None, years=0, weeks=0, months=0, days=0, hours=0, minutes=0, seconds=0, microseconds=0, trustme=False):
+    def __init__(self, value=None, years=0, weeks=0, months=0, days=0, hours=0, minutes=0, seconds=0, microseconds=0):
 
-        if not trustme:
+        # Value OR explicit time components
+        if value and (years or months or days or hours or minutes or seconds or microseconds):
+            raise ValueError('Choose between string init and explicit setting of years, months, days, hours etc.')
 
-            if value:
-                if is_numerical(value):
-                    string = '{}s'.format(value)
-                else:
-                    if not isinstance(value, str):
-                        raise TypeError('TimeUnits must be initialized with a number, a string or explicitly setting years, months, days, hours etc. (Got "{}")'.format(string.__class__.__name__))
-                    string = value
-            else:
-                string = None
+        # Special case for second/microsecond (TODO: improve/rethink me)
+        if isinstance(seconds, float):
+            if microseconds:
+                raise ValueError('Choose between seconds as float or to use microseconds, got both.')
+            microseconds = int((seconds-int(math.floor(seconds)))*1000000)
+            seconds = int(math.floor(seconds))
 
-            # Value OR explicit time components
-            if value and (years or months or days or hours or minutes or seconds or microseconds):
-                raise ValueError('Choose between string/numerical init and explicit setting of years, months, days, hours etc.')
-
-            # Check types:
-            if not isinstance(years, int): raise ValueError('year not of type int (got "{}")'.format(years.__class__.__name__))
-            if not isinstance(weeks, int): raise ValueError('weeks not of type int (got "{}")'.format(weeks.__class__.__name__))
-            if not isinstance(months, int): raise ValueError('months not of type int (got "{}")'.format(months.__class__.__name__))
-            if not isinstance(days, int): raise ValueError('days not of type int (got "{}")'.format(days.__class__.__name__))
-            if not isinstance(hours, int): raise ValueError('hours not of type int (got "{}")'.format(hours.__class__.__name__))
-            if not isinstance(minutes, int): raise ValueError('minutes not of type int (got "{}")'.format(minutes.__class__.__name__))
-            if not isinstance(seconds, int): raise ValueError('seconds not of type int (got "{}")'.format(seconds.__class__.__name__))
-            if not isinstance(microseconds, int): raise ValueError('microseconds not of type int (got "{}")'.format(microseconds.__class__.__name__))
-
-        # Set the time components if given
-        # TODO: set them only if given?
+        # Set the time components
         self.years        = years
         self.months       = months
         self.weeks        = weeks
@@ -535,53 +580,56 @@ class TimeUnit:
         self.seconds      = seconds
         self.microseconds = microseconds
 
-        if string:
+        # Handle string value
+        if value:
+            if isinstance(value,str):
 
-            # Specific case for floating point seconds (TODO: improve me, maybe inlclude it in the regex?)
-            if string.endswith('s') and '.' in string:
-                if '_' in string:
-                    raise NotImplementedError('Composite TimeUnits with floating point seconds not yet implemented.')
-                self.seconds = int(string.split('.')[0])
+                # Parse the value (as string), either as special case for floating point seconds
+                # or using the regex (TODO: improve/rethink me, maybe include everything in the regex)
+                if value.endswith('s') and '.' in value:
 
-                # Get decimal seconds as string 
-                decimal_seconds_str = string.split('.')[1][0:-1] # Remove the last "s"
+                    if '_' in value:
+                        raise NotImplementedError('Composite TimeSpans with floating point seconds not yet implemented.')
+                    self.seconds = int(value.split('.')[0])
 
-                # Ensure we can handle precision
-                if len(decimal_seconds_str) > 6:
-                    decimal_seconds_str = decimal_seconds_str[0:6]
-                    #raise ValueError('Sorry, "{}" has too many decimal seconds to be handled with a TimeUnit (which supports up to the microsecond).'.format(string))
+                    # Get decimal seconds as value
+                    decimal_seconds_str = value.split('.')[1][0:-1] # Remove the last "s"
 
-                # Add missing trailing zeros
-                missing_trailing_zeros = 6-len(decimal_seconds_str)
-                for _ in range(missing_trailing_zeros):
-                    decimal_seconds_str += '0'
+                    # Ensure we can handle precision
+                    if len(decimal_seconds_str) > 6:
+                        decimal_seconds_str = decimal_seconds_str[0:6]
+                        #raise ValueError('Sorry, "{}" has too many decimal seconds to be handled with a TimeSpan (which supports up to the microsecond).'.format(value))
 
-                # Cast to int & set
-                self.microseconds = int(decimal_seconds_str)
+                    # Add missing trailing zeros
+                    missing_trailing_zeros = 6-len(decimal_seconds_str)
+                    for _ in range(missing_trailing_zeros):
+                        decimal_seconds_str += '0'
 
+                    # Cast to int & set
+                    self.microseconds = int(decimal_seconds_str)
+
+                else:
+
+                    # Parse value using regex
+                    self.values = value.split("_")
+                    regex = re.compile('^([0-9]+)([YMDWhmsu]{1,2})$')
+
+                    for value in self.values:
+                        try:
+                            groups = regex.match(value).groups()
+                        except AttributeError:
+                            raise ValueError('Cannot parse string representation for the TimeSpan, unknown format ("{}")'.format(value)) from None
+
+                        setattr(self, self._mapping_table[groups[1]], int(groups[0]))
+
+                if not self.years and not self.months and not self.weeks and not self.days and not self.hours and not self.minutes and not self.seconds and not self.microseconds:
+                    raise ValueError('Dont\'t know hot to create a TimeSpan from value "{}" of type {}'.format(value, value.__class__.__name__))
             else:
-
-                # Parse string using regex
-                self.strings = string.split("_")
-                regex = re.compile('^([0-9]+)([YMDWhmsu]{1,2})$')
-
-                for string in self.strings:
-                    try:
-                        groups = regex.match(string).groups()
-                    except AttributeError:
-                        raise ValueError('Cannot parse string representation for the TimeUnit, unknown format ("{}")'.format(string)) from None
-
-                    setattr(self, self._mapping_table[groups[1]], int(groups[0]))
-
-        if not trustme:
-
-            # If nothing set, raise error
-            if not self.years and not self.weeks and not self.months and not self.days and not self.hours and not self.minutes and not self.seconds and not self.microseconds:
-                raise ValueError('Detected zero-duration TimeUnit!')
+                raise ValueError('Dont\'t know hot to create a TimeSpan from value "{}" of type {}'.format(value, value.__class__.__name__))
 
     @property
     def value(self):
-        """The value of the TimeUnit, as its string representation."""
+        """The value of the TimeSpan, as its string representation."""
         return(str(self))
 
     def __repr__(self):
@@ -601,7 +649,7 @@ class TimeUnit:
     def __add__(self, other):
 
         if isinstance(other, self.__class__):  
-            return TimeUnit(years        = self.years + other.years,
+            return TimeSpan(years        = self.years + other.years,
                             months       = self.months + other.months,
                             weeks        = self.weeks + other.weeks,
                             days         = self.days + other.days,
@@ -622,7 +670,7 @@ class TimeUnit:
             return other + self.as_seconds()
 
         else:
-            raise NotImplementedError('Adding TimeUnits with objects of class "{}" is not implemented'.format(other.__class__.__name__))
+            raise NotImplementedError('Adding TimeSpans with objects of class "{}" is not implemented'.format(other.__class__.__name__))
 
     def __radd__(self, other):
         return self.__add__(other)
@@ -630,7 +678,7 @@ class TimeUnit:
     def __rsub__(self, other):
 
         if isinstance(other, self.__class__):
-            raise NotImplementedError('Subracting a TimeUnit from another TimeUnit is not implemented to prevent negative TimeUnits.')
+            raise NotImplementedError('Subracting a TimeSpan from another TimeSpan is not implemented to prevent negative TimeSpans.')
 
         elif isinstance(other, datetime):
             if not other.tzinfo:
@@ -644,61 +692,69 @@ class TimeUnit:
             return other - self.as_seconds()
 
         else:
-            raise NotImplementedError('Subracting TimeUnits with objects of class "{}" is not implemented'.format(other.__class__.__name__))
+            raise NotImplementedError('Subtracting TimeSpans with objects of class "{}" is not implemented'.format(other.__class__.__name__))
 
     def __sub__(self, other):
-        raise NotImplementedError('Cannot subtract anything from a TimeUnit. Only a TimeUnit from something else.')
+        raise NotImplementedError('Cannot subtract anything from a TimeSpan. Only a TimeSpan from something else.')
 
     def __truediv__(self, other):
-        raise NotImplementedError('Division for TimeUnits is not implemented')
+        raise NotImplementedError('Division for TimeSpans is not implemented')
 
     def __rtruediv__(self, other):
-        raise NotImplementedError('Division for TimeUnits is not implemented')
+        raise NotImplementedError('Division for TimeSpans is not implemented')
 
     def __mul__(self, other):
-        raise NotImplementedError('Multiplication for TimeUnits is not implemented')
+        raise NotImplementedError('Multiplication for TimeSpans is not implemented')
 
     def __rmul__(self, other):
         return self.__mul__(other)
 
     def __eq__(self, other):
 
-        # Check against another TimeUnit
-        if isinstance(other, TimeUnit):
-            if self.is_calendar() and other.is_calendar():
-                # Check using the calendar components
-                if self.years != other.years:
-                    return False
-                if self.months != other.months:
-                    return False
-                if self.weeks != other.weeks:
-                    return False
-                if self.days != other.days:
-                    return False
-                if self.hours != other.hours:
-                    return False
-                if self.minutes != other.minutes:
-                    return False
-                if self.seconds != other.seconds:
-                    return False
-                if self.microseconds != other.microseconds:
-                    return False
-                return True
-            elif self.is_calendar() and not other.is_calendar():
-                return False
-            elif not self.is_calendar() and other.is_calendar():
-                return False
-            else:
-                # Check using the duration in seconds, as 15m and 900s are actually the same unit
+        # Check against another TimeSpan
+        if isinstance(other, TimeSpan):
+
+            try:
+                # First of all check with the duration as seconds
                 if self.as_seconds() == other.as_seconds():
                     return True
+                else:
+                    return False
+            except:
+                pass
+
+            # Check using the calendar components
+            if self.years != other.years:
+                return False
+            if self.months != other.months:
+                return False
+            if self.weeks != other.weeks:
+                return False
+            if self.days != other.days:
+                return False
+            if self.hours != other.hours:
+                return False
+            if self.minutes != other.minutes:
+                return False
+            if self.seconds != other.seconds:
+                return False
+            if self.microseconds != other.microseconds:
+                return False
+            return True
+
+            # Check using the duration in seconds (if defined), as 15m and 900s are actually the same span
+            try:
+                if self.as_seconds() == other.as_seconds():
+                    return True
+            except ValueError:
+                pass
 
         # Check for direct equality with value, i.e. comparing with a string
         if self.value == other:
             return True
 
-        # Check for equality on the same "registered" value
-        if isinstance(other, TimeUnit):
+        # Check for equality on the same value
+        if isinstance(other, TimeSpan):
             if self.value == other.value:
                 return True
 
@@ -707,8 +763,6 @@ class TimeUnit:
             if self.as_seconds() == other:
                 return True
         except (TypeError, ValueError):
-            # Raised if this or the other other TimeUnit is of calendar type, e.g.
-            # ValueError: You can ask to get a calendar TimeUnit as seconds only if you provide the unit starting point
             pass
 
         # If everything fails, return false:
@@ -721,11 +775,11 @@ class TimeUnit:
         return True if types > 1 else False 
 
     @property
-    def type(self):
-        """The type of the TimeUnit.
+    def __type(self):
+        """The type of the TimeSpan.
 
-           - "Physical" if based on hours, minutes, seconds and  microseconds, which have fixed duration.
-           - "Calendar" if based on years, months, weeks and days, which have variable duration depending on the starting date,
+           - "Physical" if based only on hours, minutes, seconds and  microseconds, which have fixed duration.
+           - "Calendar" if also based on years, months, weeks and days, which have variable duration depending on the starting date,
              and their math is not always well defined (e.g. adding a month to the 30th of January does not make sense)."""
 
         if self.years or self.months or self.weeks or self.days:
@@ -733,27 +787,13 @@ class TimeUnit:
         elif self.hours or self.minutes or self.seconds or self.microseconds:
             return self._PHYSICAL
         else:
-            raise ConsistencyError('Error, TimeSlot not initialized?!')
+            raise ConsistencyError('Error, TimeSpan not initialized?!')
 
-    def is_physical(self):
-        """Return True if the TimeUnit type is physical, False otherwise."""
-        if self.type == self._PHYSICAL:
-            return True
-        else:
-            return False
-
-    def is_calendar(self):
-        """Return True if the TimeUnit type is calendar, False otherwise."""
-        if self.type == self._CALENDAR:
-            return True 
-        else:
-            return False
-
-    def round(self, time, how=None):
-        """Round a Time or datetime according to this TimeUnit."""
+    def round(self, time, how='half'):
+        """Round a Time or datetime according to this TimeSpan."""
 
         if self._is_composite():
-            raise ValueError('Sorry, only simple TimeUnits are supported by the round operation')
+            raise ValueError('Sorry, only simple TimeSpans are supported by the round operation')
 
         if isinstance(time, Time):
             time_dt = time.to_dt()
@@ -764,24 +804,24 @@ class TimeUnit:
             raise ValueError('The timezone of the Time or datetime is required')
 
         # Handle physical time 
-        if self.type == self._PHYSICAL:
+        if self.__type == self._PHYSICAL:
 
             # Convert input time to seconds
             time_s = s_from_dt(time_dt)
             tz_offset_s = get_tz_offset(time_dt)
 
-            # Get TimeUnit duration in seconds
-            time_unit_s = self.as_seconds(time_dt)
+            # Get TimeSpan duration in seconds
+            time_span_s = self.as_seconds(time_dt)
 
             # Apply modular math (including timezone time translation trick if required (multiple hours))
             # TODO: check for correctness, the time shift should be always done...
 
             if self.hours > 1 or self.minutes > 60:
-                time_floor_s = ( (time_s - tz_offset_s) - ( (time_s - tz_offset_s) % time_unit_s) ) + tz_offset_s
+                time_floor_s = ( (time_s - tz_offset_s) - ( (time_s - tz_offset_s) % time_span_s) ) + tz_offset_s
             else:
-                time_floor_s = time_s - (time_s % time_unit_s)
+                time_floor_s = time_s - (time_s % time_span_s)
 
-            time_ceil_s   = time_floor_s + time_unit_s
+            time_ceil_s   = time_floor_s + time_span_s
 
             if how == 'floor':
                 time_rounded_s = time_floor_s
@@ -801,21 +841,21 @@ class TimeUnit:
             rounded_dt = dt_from_s(time_rounded_s, tz=time_dt.tzinfo)
 
         # Handle calendar time 
-        elif self.type == self._CALENDAR:
+        elif self.__type == self._CALENDAR:
 
             if self.years:
                 if self.years > 1:
-                    raise NotImplementedError('Cannot round based on calendar TimeUnits with years > 1')
+                    raise NotImplementedError('Cannot round based on calendar TimeSpans with years > 1')
                 floored_dt=time_dt.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
 
             if self.months:
                 if self.months > 1:
-                    raise NotImplementedError('Cannot round based on calendar TimeUnits with months > 1')
+                    raise NotImplementedError('Cannot round based on calendar TimeSpans with months > 1')
                 floored_dt=time_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
             if self.weeks:
                 # Get to this day midnight
-                floored_dt = TimeUnit('1D').floor(time_dt)
+                floored_dt = TimeSpan('1D').floor(time_dt)
 
                 # If not monday, subtract enought days to get there
                 if floored_dt.weekday() != 0:
@@ -823,7 +863,7 @@ class TimeUnit:
 
             if self.days:
                 if self.days > 1:
-                    raise NotImplementedError('Cannot round based on calendar TimeUnits with days > 1')
+                    raise NotImplementedError('Cannot round based on calendar TimeSpans with days > 1')
                 floored_dt=time_dt.replace(hour=0, minute=0, second=0, microsecond=0)
 
             # Check DST offset consistency and fix if not respected
@@ -838,7 +878,7 @@ class TimeUnit:
                 ceiled_dt = self.shift(floored_dt, 1)
                 rounded_dt = ceiled_dt
 
-            else:
+            elif how == 'half':
                 ceiled_dt = self.shift(floored_dt, 1)
                 distance_from_time_floor_s = abs(s_from_dt(time_dt) - s_from_dt(floored_dt)) # Distance from floor
                 distance_from_time_ceil_s  = abs(s_from_dt(time_dt) - s_from_dt(ceiled_dt))  # Distance from ceil
@@ -847,29 +887,31 @@ class TimeUnit:
                     rounded_dt = floored_dt
                 else:
                     rounded_dt = ceiled_dt
+            else:
+                raise ValueError('Unknown rounding strategy "{}"'.format(how))
 
         # Handle other cases (Consistency error)
         else:
-            raise ConsistencyError('Error, TimeUnit type not Physical nor Calendar?!')
+            raise ConsistencyError('Error, TimeSpan type not Physical nor Calendar?!')
 
         # Return
         if isinstance(time, Time):
-            return Time(rounded_dt)
+            return Time.from_dt(rounded_dt)
         else:
             return rounded_dt
 
     def floor(self, time):
-        """Floor a Time or datetime according to this TimeUnit."""
+        """Floor a Time or datetime according to this TimeSpan."""
         return self.round(time, how='floor')
 
     def ceil(self, time):
-        """Ceil a Time or datetime according to this TimeUnit."""
+        """Ceil a Time or datetime according to this TimeSpan."""
         return self.round(time, how='ceil')
 
     def shift(self, time, times=1):
-        """Shift a given Time or datetime n times this TimeUnit."""
+        """Shift a given Time or datetime n times this TimeSpan."""
         if self._is_composite():
-            raise ValueError('Sorry, only simple TimeUnits are supported by the shift operation')
+            raise ValueError('Sorry, only simple TimeSpans are supported by the shift operation')
  
         if isinstance(time, Time):
             time_dt = time.to_dt()
@@ -880,21 +922,21 @@ class TimeUnit:
         time_s = s_from_dt(time_dt)
 
         # Handle physical time TimeSlot
-        if self.type == self._PHYSICAL:
+        if self.__type == self._PHYSICAL:
 
-            # Get TimeUnit duration in seconds
-            time_unit_s = self.as_seconds()
+            # Get TimeSpan duration in seconds
+            time_span_s = self.as_seconds()
 
-            time_shifted_s = time_s + ( time_unit_s * times )
+            time_shifted_s = time_s + ( time_span_s * times )
             time_shifted_dt = dt_from_s(time_shifted_s, tz=time_dt.tzinfo)
 
             return time_shifted_dt
 
         # Handle calendar time TimeSlot
-        elif self.type == self._CALENDAR:
+        elif self.__type == self._CALENDAR:
 
             if times != 1:
-                raise NotImplementedError('Cannot shift calendar TimeUnits for times greater than 1 (got times="{}")'.format(times))
+                raise NotImplementedError('Cannot shift calendar TimeSpans for times greater than 1 (got times="{}")'.format(times))
 
             # Create a TimeDelta object for everything but years and months
             delta = timedelta(weeks = self.weeks,
@@ -935,7 +977,7 @@ class TimeUnit:
                     # If we are here, it means that the datetime cannot be corrected.
                     # This basically means that we are in the edge case where we ended
                     # up in a a non-existent datetime, e.g. 2023-03-26 02:15 on Europe/Rome,
-                    # probably by adding a calendar time unit to a previous datetime
+                    # probably by adding a calendar time span to a previous datetime
                     raise ValueError('Cannot shift "{}" by "{}" ({})'.format(time_dt,self,e)) from None
 
             # Check if we ended up on an ambiguous time
@@ -949,23 +991,25 @@ class TimeUnit:
 
         # Return
         if isinstance(time, Time):
-            return Time(time_shifted_dt)
+            return Time.from_dt(time_shifted_dt)
         else:
             return time_shifted_dt
 
-    def as_seconds(self, start=None):
-        """The duration of the TimeUnit in seconds."""
+    def as_seconds(self, starting_at=None):
+        """The duration of the TimeSpan in seconds."""
+
+        start = starting_at
 
         if start and isinstance(start, Time):
             start = start.to_dt()
 
-        if self.type == self._CALENDAR:
+        if self.__type == self._CALENDAR:
 
             if not start:
-                raise ValueError('You can ask to get a calendar TimeUnit as seconds only if you provide the unit starting point')
+                raise ValueError('You can ask to get a calendar TimeSpan as seconds only if you provide the span starting point')
 
             if self._is_composite():
-                raise ValueError('Sorry, only simple TimeUnits are supported by this operation')
+                raise ValueError('Sorry, only simple TimeSpans are supported by this operation')
 
             # Start Epoch
             start_epoch = s_from_dt(start)
@@ -975,21 +1019,21 @@ class TimeUnit:
             end_epoch = s_from_dt(end_dt)
 
             # Get duration based on seconds
-            time_unit_s = end_epoch - start_epoch
+            time_span_s = end_epoch - start_epoch
 
-        elif self.type == 'Physical':
-            time_unit_s = 0
+        elif self.__type == self._PHYSICAL:
+            time_span_s = 0
             if self.hours:
-                time_unit_s += self.hours * 60 * 60
+                time_span_s += self.hours * 60 * 60
             if self.minutes:
-                time_unit_s += self.minutes * 60
+                time_span_s += self.minutes * 60
             if self.seconds:
-                time_unit_s += self.seconds
+                time_span_s += self.seconds
             if self.microseconds:
-                time_unit_s += 1/1000000.0 * self.microseconds
+                time_span_s += 1/1000000.0 * self.microseconds
 
         else:
-            raise ConsistencyError('Unknown TimeUnit type "{}"'.format(self.type))
+            raise ConsistencyError('Unknown TimeSpan type "{}"'.format(self.type))
 
-        return float(time_unit_s)
+        return float(time_span_s)
 
