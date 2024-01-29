@@ -643,8 +643,7 @@ class TimeSpan:
         string = string[:-1]
         return string
 
-    def __add__(self, other):
-
+    def __radd__(self, other):
         if isinstance(other, self.__class__):  
             return TimeSpan(years        = self.years + other.years,
                             months       = self.months + other.months,
@@ -669,13 +668,17 @@ class TimeSpan:
         else:
             raise NotImplementedError('Adding TimeSpans with objects of class "{}" is not implemented'.format(other.__class__.__name__))
 
-    def __radd__(self, other):
-        return self.__add__(other)
+    def __add__(self, other):
+
+        if isinstance(other, self.__class__):
+            return self.__radd__(other)
+        else:
+            raise NotImplementedError('Cannot add anything (except another TimeSpan) to a TimeSpan. Only a TimeSpan to something else.')
 
     def __rsub__(self, other):
 
         if isinstance(other, self.__class__):
-            raise NotImplementedError('Subracting a TimeSpan from another TimeSpan is not implemented to prevent negative TimeSpans.')
+            raise NotImplementedError('Subtracting a TimeSpan from another TimeSpan is not implemented to prevent negative TimeSpans.')
 
         elif isinstance(other, datetime):
             if not other.tzinfo:
@@ -692,7 +695,10 @@ class TimeSpan:
             raise NotImplementedError('Subtracting TimeSpans with objects of class "{}" is not implemented'.format(other.__class__.__name__))
 
     def __sub__(self, other):
-        raise NotImplementedError('Cannot subtract anything from a TimeSpan. Only a TimeSpan from something else.')
+        if isinstance(other, self.__class__):
+            raise NotImplementedError('Subtracting a TimeSpan from another TimeSpan is not implemented to prevent negative TimeSpans.')
+        else:
+            raise NotImplementedError('Cannot subtract anything from a TimeSpan. Only a TimeSpan from something else.')
 
     def __truediv__(self, other):
         raise NotImplementedError('Division for TimeSpans is not implemented')

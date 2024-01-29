@@ -175,7 +175,8 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time.to_iso(), '2023-10-29T02:15:00+02:00')
 
         time = Time(2023,11,5,1,15,0, offset=-3600*4, tz='America/New_York')
-        print(time)
+        self.assertEqual(str(time), 'Time: 1699161300.0 (2023-11-05 01:15:00 America/New_York DST)')
+        self.assertEqual(time.to_iso(), '2023-11-05T01:15:00-04:00')
 
     def test_conversions(self):
 
@@ -568,6 +569,10 @@ class TestTimeSpans(unittest.TestCase):
         self.assertEqual(str(datetime3), '2015-10-25 02:15:00+02:00')
         self.assertEqual(str(datetime4), '2015-10-25 02:15:00+01:00')
         self.assertEqual(str(datetime5), '2015-10-25 03:15:00+01:00')
+
+        # Sum a datetime (or anhything else other than another TimeSpan) to a TimeSpan: it does not make sense
+        with self.assertRaises(NotImplementedError):
+            TimeSpan('1h') + dt(2015,10,25,0,15,0, tz='Europe/Rome')
 
         # Sum with a numerical value
         time_span = TimeSpan('1h')
