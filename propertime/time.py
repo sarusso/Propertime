@@ -540,9 +540,6 @@ class TimeSpan:
         microseconds(:obj:`int`): the time span microseconds component.
     """
 
-    _CALENDAR = 'Calendar'
-    _PHYSICAL = 'Physical'
-
     # NOT ref to https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes :  %d, %m, %w %y - %H, %M, %S
     # Instead: M, D, Y, W - h m s
 
@@ -769,25 +766,14 @@ class TimeSpan:
         return False
 
     def _is_composite(self):
-        types = 0
+        components = 0
         for item in self._mapping_table:
-            if getattr(self, self._mapping_table[item]): types +=1
-        return True if types > 1 else False 
-
-    @property
-    def __type(self):
-        """The type of the TimeSpan.
-
-           - "Physical" if based only on hours, minutes, seconds and  microseconds, which have fixed duration.
-           - "Calendar" if also based on years, months, weeks and days, which have variable duration depending on the starting date,
-             and their math is not always well defined (e.g. adding a month to the 30th of January does not make sense)."""
-
-        if self.years or self.months or self.weeks or self.days:
-            return self._CALENDAR
-        elif self.hours or self.minutes or self.seconds or self.microseconds:
-            return self._PHYSICAL
+            if getattr(self, self._mapping_table[item]):
+                components +=1
+        if components > 1:
+            return True
         else:
-            raise ConsistencyError('Error, TimeSpan not initialized?!')
+            return False
 
     def round(self, time, how='half'):
         """Round a Time or datetime according to this TimeSpan."""
@@ -803,45 +789,8 @@ class TimeSpan:
         if not time_dt.tzinfo:
             raise ValueError('The timezone of the Time or datetime is required')
 
-        # Handle physical time 
-        if self.__type == self._PHYSICAL:
-
-            # Convert input time to seconds
-            time_s = s_from_dt(time_dt)
-            tz_offset_s = get_tz_offset(time_dt)
-
-            # Get TimeSpan duration in seconds
-            time_span_s = self.as_seconds(time_dt)
-
-            # Apply modular math (including timezone time translation trick if required (multiple hours))
-            # TODO: check for correctness, the time shift should be always done...
-
-            if self.hours > 1 or self.minutes > 60:
-                time_floor_s = ( (time_s - tz_offset_s) - ( (time_s - tz_offset_s) % time_span_s) ) + tz_offset_s
-            else:
-                time_floor_s = time_s - (time_s % time_span_s)
-
-            time_ceil_s   = time_floor_s + time_span_s
-
-            if how == 'floor':
-                time_rounded_s = time_floor_s
-
-            elif how == 'ceil':
-                time_rounded_s = time_ceil_s
-
-            else:
-                distance_from_time_floor_s = abs(time_s - time_floor_s) # Distance from floor
-                distance_from_time_ceil_s  = abs(time_s - time_ceil_s)  # Distance from ceil
-
-                if distance_from_time_floor_s <= distance_from_time_ceil_s:
-                    time_rounded_s = time_floor_s
-                else:
-                    time_rounded_s = time_ceil_s
-
-            rounded_dt = dt_from_s(time_rounded_s, tz=time_dt.tzinfo)
-
-        # Handle calendar time 
-        elif self.__type == self._CALENDAR:
+        # Handle calendar/physical time components
+        if self.years or self.months or self.weeks or self.days:
 
             if self.years:
                 if self.years > 1:
@@ -890,9 +839,41 @@ class TimeSpan:
             else:
                 raise ValueError('Unknown rounding strategy "{}"'.format(how))
 
-        # Handle other cases (Consistency error)
         else:
-            raise ConsistencyError('Error, TimeSpan type not Physical nor Calendar?!')
+
+            # Convert input time to seconds
+            time_s = s_from_dt(time_dt)
+            tz_offset_s = get_tz_offset(time_dt)
+
+            # Get TimeSpan duration in seconds
+            time_span_s = self.as_seconds(time_dt)
+
+            # Apply modular math (including timezone time translation trick if required (multiple hours))
+            # TODO: check for correctness, the time shift should be always done...
+
+            if self.hours > 1 or self.minutes > 60:
+                time_floor_s = ( (time_s - tz_offset_s) - ( (time_s - tz_offset_s) % time_span_s) ) + tz_offset_s
+            else:
+                time_floor_s = time_s - (time_s % time_span_s)
+
+            time_ceil_s   = time_floor_s + time_span_s
+
+            if how == 'floor':
+                time_rounded_s = time_floor_s
+
+            elif how == 'ceil':
+                time_rounded_s = time_ceil_s
+
+            else:
+                distance_from_time_floor_s = abs(time_s - time_floor_s) # Distance from floor
+                distance_from_time_ceil_s  = abs(time_s - time_ceil_s)  # Distance from ceil
+
+                if distance_from_time_floor_s <= distance_from_time_ceil_s:
+                    time_rounded_s = time_floor_s
+                else:
+                    time_rounded_s = time_ceil_s
+
+            rounded_dt = dt_from_s(time_rounded_s, tz=time_dt.tzinfo)
 
         # Return
         if isinstance(time, Time):
@@ -921,19 +902,8 @@ class TimeSpan:
         # Convert input time to seconds
         time_s = s_from_dt(time_dt)
 
-        # Handle physical time TimeSlot
-        if self.__type == self._PHYSICAL:
-
-            # Get TimeSpan duration in seconds
-            time_span_s = self.as_seconds()
-
-            time_shifted_s = time_s + ( time_span_s * times )
-            time_shifted_dt = dt_from_s(time_shifted_s, tz=time_dt.tzinfo)
-
-            return time_shifted_dt
-
-        # Handle calendar time TimeSlot
-        elif self.__type == self._CALENDAR:
+        # Handle calendar/physical time components
+        if self.years or self.months or self.weeks or self.days:
 
             if times != 1:
                 raise NotImplementedError('Cannot shift calendar TimeSpans for times greater than 1 (got times="{}")'.format(times))
@@ -985,9 +955,14 @@ class TimeSpan:
                 time_shifted_dt_naive =  time_shifted_dt.replace(tzinfo=None)
                 raise ValueError('Cannot shift "{}" by "{}" (Would end up on time {} which is ambiguous on time zone {})'.format(time_dt,self,time_shifted_dt_naive, time_shifted_dt.tzinfo)) from None
 
-        # Handle other cases (Consistency error)
         else:
-            raise ConsistencyError('Consistency error: TimeSlot type not physical nor calendar?!')
+            # Get duration (seconds)
+            time_span_s = self.as_seconds()
+
+            time_shifted_s = time_s + ( time_span_s * times )
+            time_shifted_dt = dt_from_s(time_shifted_s, tz=time_dt.tzinfo)
+
+            return time_shifted_dt
 
         # Return
         if isinstance(time, Time):
@@ -1003,7 +978,8 @@ class TimeSpan:
         if start and isinstance(start, Time):
             start = start.to_dt()
 
-        if self.__type == self._CALENDAR:
+        # Handle calendar/physical time components
+        if self.years or self.months or self.weeks or self.days:
 
             if not start:
                 raise ValueError('You can ask to get a calendar TimeSpan as seconds only if you provide the span starting point')
@@ -1021,7 +997,8 @@ class TimeSpan:
             # Get duration based on seconds
             time_span_s = end_epoch - start_epoch
 
-        elif self.__type == self._PHYSICAL:
+        else:
+
             time_span_s = 0
             if self.hours:
                 time_span_s += self.hours * 60 * 60
@@ -1032,8 +1009,6 @@ class TimeSpan:
             if self.microseconds:
                 time_span_s += 1/1000000.0 * self.microseconds
 
-        else:
-            raise ConsistencyError('Unknown TimeSpan type "{}"'.format(self.type))
-
+        # Return
         return float(time_span_s)
 
