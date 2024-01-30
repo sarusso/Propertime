@@ -455,10 +455,182 @@ class TestTime(unittest.TestCase):
 
     def test_operations(self):
 
-        # Operations
         time1 = Time(4.3)
         time2 = Time(4.2)
-        self.assertEqual(time1 + time2, 8.5)
+        dt1 = dt(1970,1,1,0,0,4,3, tz='UTC')
+        dt2 = dt(1970,1,1,0,0,4,2, tz='UTC')
+
+        # Operations with Time objects
+        result = time1 + time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) + float(time2))
+
+        result = time1 - time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) - float(time2))
+
+        result = time1 * time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) * float(time2))
+
+        result = time1 / time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) / float(time2))
+
+        result = time1 % time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) % float(time2))
+
+        result = time1 ** time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) ** float(time2))
+
+        result = time1 // time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) // float(time2))
+
+        # Operations with numerical values (normal)
+        result = time1 + 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) + 10)
+
+        result = time1 - 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) - 10)
+
+        result = time1 * 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) * 10)
+
+        result = time1 / 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) / 10)
+
+        result = time1 % 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) % 10)
+
+        result = time1 ** 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) ** 10)
+
+        result = time1 // 10
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) // 10)
+
+        # Operations with numerical values (right)
+        result = 10 + time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 + float(time1))
+
+        result = 10 - time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 - float(time1))
+
+        result = 10 * time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 * float(time1))
+
+        result = 10 / time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 / float(time1))
+
+        result = 10 % time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 % float(time1))
+
+        result = 10 ** time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 ** float(time1))
+
+        result = 10 // time1
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, 10 // float(time1))
+
+
+        # Operations with datetimes (normal)
+        result = time1 + dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) + s_from_dt(dt2))
+
+        result = time1 - dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) - s_from_dt(dt2))
+
+        result = time1 * dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) * s_from_dt(dt2))
+
+        result = time1 / dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) / s_from_dt(dt2))
+
+        result = time1 % dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) % s_from_dt(dt2))
+
+        result = time1 ** dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) ** s_from_dt(dt2))
+
+        result = time1 // dt2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, float(time1) // s_from_dt(dt2))
+
+
+        # Operations with datetimes (right)
+        result = dt1 + time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) + float(time2))
+
+        result = dt1 - time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) - float(time2))
+
+        result = dt1 * time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) * float(time2))
+
+        result = dt1 / time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) / float(time2))
+
+        result = dt1 % time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) % float(time2))
+
+        result = dt1 ** time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) ** float(time2))
+
+        result = dt1 // time2
+        self.assertIsInstance(result, Time)
+        self.assertEqual(result, s_from_dt(dt1) // float(time2))
+
+
+        # Some edge cases
+        self.assertEqual(time1 + Time(1970,1,1,2,0,0, tz=None, offset=3600), 3604.3)
+        self.assertEqual(Time(1970,1,1,2,0,0, tz=None, offset=3600) + time1, 3604.3)
+
+
+        # Wrong combinations (only for the sum, as the underlying logic is the same). TODO: improve me?
+        with self.assertRaises(ValueError):
+            time1 + Time(1970,1,1,1,0,0, tz='Europe/Rome')
+
+        with self.assertRaises(ValueError):
+            Time(1970,1,1,1,0,0, tz='Europe/Rome') + time2
+
+        with self.assertRaises(ValueError):
+            time1 + dt(1970,1,1,1,0,0, tz='Europe/Rome')
+
+        with self.assertRaises(ValueError):
+            dt(1970,1,1,1,0,0, tz='Europe/Rome') + time2
+
+        with self.assertRaises(ValueError):
+            Time(1970,1,1,1,0,0, tz=None, offset=7200) + Time(1970,1,1,1,0,0, tz=None, offset=3600)
+
+        with self.assertRaises(ValueError):
+            time1 + dt(1970,1,1,1,0,0, naive=True)
 
 
 

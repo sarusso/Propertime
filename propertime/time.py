@@ -430,6 +430,166 @@ class Time(float):
     def __repr__(self):
         return self.__str__()
 
+    @staticmethod
+    def __get_target_tz_and_offset(first, second):
+
+        target_tz = None
+        target_offset = 'auto'
+
+        if isinstance(second, first.__class__):
+            # Both have a time zone: they have to be the same
+            if first.tz and second.tz:
+                if first.tz != second.tz:
+                    raise ValueError('Operating on time objects on different time zones would make the resulting time zone not defined')
+                else:
+                    target_tz = first.tz
+
+            # Only one has a time zone: that wins
+            if first.tz or second.tz:
+                if first.tz:
+                    target_tz = first.tz
+                else:
+                    target_tz = second.tz
+
+            # Both have only an offset: they must be the same.
+            if not first.tz and not second.tz:
+                if first.offset != second.offset:
+                    raise ValueError('Operating on time objects with no time zone and different offsets would make the resulting offset not defined')
+                else:
+                    target_offset = first.offset
+
+        elif isinstance(second, datetime):
+            if not second.tzinfo:
+                raise ValueError('Cannot operate with naive datetimes')
+
+            if isinstance(second.tzinfo, tzoffset):
+                second_offset = get_offset_from_dt(second)
+                second_tz = None
+            else:
+                second_offset = None
+                second_tz = second.tzinfo
+
+            # Both have a time zone: they have to be the same
+            if first.tz and second_tz:
+                if first.tz != second_tz:
+                    raise ValueError('Operating on time/datetime objects on different time zones would make the resulting time zone not defined')
+                else:
+                    target_tz = first.tz
+
+            # Only one has a time zone: that wins
+            if first.tz or second_tz:
+                if first.tz:
+                    target_tz = first.tz
+                else:
+                    target_tz = second_tz
+
+            # Both have only an offset: they must be the same.
+            if not first.tz and not second_tz:
+                if first.offset != second_offset:
+                    raise ValueError('Operating on time/datetime objects with no time zone and different offsets would make the resulting offset not defined')
+                else:
+                    target_offset = first.offset
+
+        return target_tz, target_offset
+
+
+    def __operation(self, other, caller):
+
+        def compute(first, second, caller):
+
+            # Normal operations
+            if caller == self.__add__:
+                return first + second
+            elif caller == self.__sub__:
+                return first - second
+            elif caller == self.__mul__:
+                return first * second
+            elif caller == self.__truediv__:
+                return first / second
+            elif caller == self.__mod__:
+                return first % second
+            elif caller == self.__pow__:
+                return first ** second
+            elif caller == self.__floordiv__:
+                return first // second
+
+            # Right operations
+            elif caller == self.__radd__:
+                return second + first
+            elif caller == self.__rsub__:
+                return second - first
+            elif caller == self.__rmul__:
+                return second * first
+            elif caller == self.__rtruediv__:
+                return second / first
+            elif caller == self.__rmod__:
+                return second % first
+            elif caller == self.__rpow__:
+                return second ** first
+            elif caller == self.__rfloordiv__:
+                return second // first
+
+        if isinstance(other, self.__class__):
+            target_tz, target_offset = self.__get_target_tz_and_offset(self, other)
+            target_value = compute(float(self), float(other), caller)
+
+        elif isinstance(other, datetime):
+            target_tz, target_offset = self.__get_target_tz_and_offset(self, other)
+            target_value = compute(float(self), s_from_dt(other), caller)
+
+        elif isinstance(other, TimeSpan):
+            return NotImplemented
+
+        elif isinstance(other, timedelta):
+            return NotImplemented
+
+        else:
+            target_tz, target_offset = self.tz, self.offset
+            target_value = compute(float(self),other, caller)
+
+        return Time(target_value, tz=target_tz, offset=target_offset)
+
+    def __add__(self, other):
+        return self.__operation(other, self.__add__)
+
+    def __sub__(self, other):
+        return self.__operation(other, self.__sub__)
+
+    def __mul__(self, other):
+        return self.__operation(other, self.__mul__)
+
+    def __truediv__(self, other):
+        return self.__operation(other, self.__truediv__)
+
+    def __mod__(self, other):
+        return self.__operation(other, self.__mod__)
+
+    def __pow__(self, other):
+        return self.__operation(other, self.__pow__)
+
+    def __floordiv__(self, other):
+        return self.__operation(other, self.__floordiv__)
+
+    def __radd__(self, other):
+        return self.__operation(other, self.__radd__)
+
+    def __rsub__(self, other):
+        return self.__operation(other, self.__rsub__)
+
+    def __rmul__(self, other):
+        return self.__operation(other, self.__rmul__)
+
+    def __rtruediv__(self, other):
+        return self.__operation(other, self.__rtruediv__)
+
+    def __rmod__(self, other):
+        return self.__operation(other, self.__rmod__)
+
+    def __rpow__(self, other):
+        return self.__operation(other, self.__rpow__)
+
+    def __rfloordiv__(self, other):
+        return self.__operation(other, self.__rfloordiv__)
 
     def conjugate(self):
         """Disabled. It does not make sense to use imaginary numbers with time."""
