@@ -346,7 +346,7 @@ class Time(float):
         return self._tz
 
     def as_tz(self, tz):
-        """Get this Time on another time zone."""
+        """Get this time on another time zone."""
 
         new_obj = copy.deepcopy(self)
         new_obj._tz = tz
@@ -369,7 +369,7 @@ class Time(float):
         return self._offset
 
     def as_offset(self, offset):
-        """Get this Time with another offset."""
+        """Get this time with another (UTC) offset."""
 
         new_obj = copy.deepcopy(self)
         new_obj._offset = offset
@@ -602,6 +602,24 @@ class Time(float):
     def real(self):
         """Disabled. It does not make sense to use imaginary numbers with time."""
         raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+
+    def as_integer_ratio(self):
+        """Return time as integer ratio."""
+        return super().as_integer_ratio()
+
+    @classmethod
+    def fromhex(cls, string):
+        """Create time from a hexadecimal string."""
+        return cls(float.fromhex(string))
+
+    def hex(self):
+        """Return a hexadecimal representation of time."""
+        return super().hex()
+
+    def is_integer(self):
+        """Return True if time is an integer, i.e. it has zero sub-seconds."""
+        return super().is_integer()
+
 
 
 class TimeSpan:

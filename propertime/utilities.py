@@ -88,7 +88,7 @@ def now_dt(tz='UTC'):
 
 def dt(*args, **kwargs):
     """Initialize a datetime object with the time zone in the proper way. Using the standard
-    datetime initilization leads to various problems if setting a pytz time zone.
+    datetime initialization leads to various problems if setting a pytz time zone.
 
     Args:
         year(int): the year.

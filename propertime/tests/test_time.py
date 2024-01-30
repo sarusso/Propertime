@@ -178,6 +178,15 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time), 'Time: 1699161300.0 (2023-11-05 01:15:00 America/New_York DST)')
         self.assertEqual(time.to_iso(), '2023-11-05T01:15:00-04:00')
 
+        # Extra stuff for float interface compatibility
+        self.assertEqual(Time.fromhex('0x1.ffffp10'), 2047.984375)
+        self.assertIsInstance(Time.fromhex('0x1.ffffp10'), Time)
+        self.assertEqual(Time(123).hex(), '0x1.ec00000000000p+6')
+        self.assertTrue(Time(123).is_integer())
+        self.assertTrue(Time(123.0).is_integer())
+        self.assertFalse(Time(123.4).is_integer())
+
+
     def test_conversions(self):
 
         # Time from naive datetime not allowed
