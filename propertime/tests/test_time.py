@@ -410,7 +410,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time.to_iso(), '1986-08-01T16:46:00+02:00')
 
 
-    def test_str(self):
+    def test_representations(self):
 
         # UTC
         time = Time(523291560)
@@ -445,8 +445,12 @@ class TestTime(unittest.TestCase):
         time = Time(523291560, tz='Europe/Rome')
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
 
+        # Lastly test also repr
+        time = Time(523291560, tz='Europe/Rome')
+        self.assertEqual(repr(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
 
-    def test_as_offset_timezone(self):
+
+    def test_as_timezone_and_offset(self):
 
         # Get Time as another time zone
         time = Time(523291560, tz='Europe/Rome')
@@ -656,7 +660,7 @@ class TestTime(unittest.TestCase):
 
 class TestTimeSpans(unittest.TestCase):
 
-    def test_TimeSpan(self):
+    def test_init(self):
 
         with self.assertRaises(ValueError):
             _ = TimeSpan('15m', '20s')
@@ -739,80 +743,12 @@ class TestTimeSpans(unittest.TestCase):
         self.assertNotEqual(TimeSpan('86400s'), TimeSpan('1D'))
 
 
-    def test_TimeSpan_math(self):
-
-        time_span_1 = TimeSpan('15m')
-        time_span_2 = TimeSpan('15m_30s_3u')
-        time_span_3 = TimeSpan(days=1)
-
-        # Sum with other TimeSpan objects
-        self.assertEqual(str(time_span_1+time_span_2+time_span_3), '1D_30m_30s_3u')
-
-        # Sum with datetime (also on DST change)
-        time_span = TimeSpan('1h')
-        datetime1 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
-        datetime2 = datetime1 + time_span
-        datetime3 = datetime2 + time_span
-        datetime4 = datetime3 + time_span
-        datetime5 = datetime4 + time_span
-
-        self.assertEqual(str(datetime1), '2015-10-25 00:15:00+02:00')
-        self.assertEqual(str(datetime2), '2015-10-25 01:15:00+02:00')
-        self.assertEqual(str(datetime3), '2015-10-25 02:15:00+02:00')
-        self.assertEqual(str(datetime4), '2015-10-25 02:15:00+01:00')
-        self.assertEqual(str(datetime5), '2015-10-25 03:15:00+01:00')
-
-        # Sum a datetime (or anhything else other than another TimeSpan) to a TimeSpan: it does not make sense
-        with self.assertRaises(NotImplementedError):
-            TimeSpan('1h') + dt(2015,10,25,0,15,0, tz='Europe/Rome')
-
-        # Sum with a numerical value
-        time_span = TimeSpan('1h')
-        epoch1 = 3600
-        self.assertEqual(epoch1 + time_span, 7200)
-
-        # Subtract to other TimeSpan object
-        with self.assertRaises(NotImplementedError):
-            time_span_1 - time_span_2
-
-        # Subtract to a datetime object
-        with self.assertRaises(NotImplementedError):
-            time_span_1 - datetime1
-
-        # In general, subtracting to anything is not implemented
-        with self.assertRaises(NotImplementedError):
-            time_span_1 - 'hello'
-
-        # Subtract from a datetime (also on DST change)
-        time_span = TimeSpan('1h')
-        datetime1 = dt(2015,10,25,3,15,0, tz='Europe/Rome')
-        datetime2 = datetime1 - time_span
-        datetime3 = datetime2 - time_span
-        datetime4 = datetime3 - time_span
-        datetime5 = datetime4 - time_span
-
-        self.assertEqual(str(datetime1), '2015-10-25 03:15:00+01:00')
-        self.assertEqual(str(datetime2), '2015-10-25 02:15:00+01:00')
-        self.assertEqual(str(datetime3), '2015-10-25 02:15:00+02:00')
-        self.assertEqual(str(datetime4), '2015-10-25 01:15:00+02:00')
-        self.assertEqual(str(datetime5), '2015-10-25 00:15:00+02:00')
-
-        # Subtract from a numerical value
-        time_span = TimeSpan('1h')
-        epoch1 = 7200
-        self.assertEqual(epoch1 - time_span, 3600)
-
-        # Test sum with Time
-        time_span = TimeSpan('1h')
-        time = Time(60)
-        self.assertEqual((time+time_span), 3660)
-
-        # Test equal
-        time_span_1 = TimeSpan('15m')
-        self.assertEqual(time_span_1, 900)
+    def test_representations(self):
+        self.assertEqual(str(TimeSpan(days=1)), '1D')
+        self.assertEqual(repr(TimeSpan(days=1)), '1D')
 
 
-    def test_TimeSpan_duration(self):
+    def test_as_seconds(self):
 
         datetime1 = dt(2015,10,24,0,15,0, tz='Europe/Rome')
         datetime2 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
@@ -850,7 +786,7 @@ class TestTimeSpans(unittest.TestCase):
         self.assertEqual(TimeSpan(minutes=1, seconds=3).as_seconds(), 63)
 
 
-    def test_TimeSpan_shift(self):
+    def test_shift(self):
 
         datetime1 = dt(2015,10,24,0,15,0, tz='Europe/Rome')
         datetime2 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
@@ -891,7 +827,7 @@ class TestTimeSpans(unittest.TestCase):
         self.assertEqual(time_span.shift(datetime1), dt(2016,10,24,0,15,0, tz='Europe/Rome'))
 
 
-    def test_TimeSpan_operations(self):
+    def test_ceil_floor_round(self):
 
         # Test that complex time_spans are not handable
         time_span = TimeSpan('1D_3h_5m')
@@ -1037,3 +973,76 @@ class TestTimeSpans(unittest.TestCase):
             slider = slider + TimeSpan('1h')
 
         self.assertEqual(slider, end)
+
+
+    def test_operations(self):
+
+        time_span_1 = TimeSpan('15m')
+        time_span_2 = TimeSpan('15m_30s_3u')
+        time_span_3 = TimeSpan(days=1)
+
+        # Sum with other TimeSpan objects
+        self.assertEqual(str(time_span_1+time_span_2+time_span_3), '1D_30m_30s_3u')
+
+        # Sum with datetime (also on DST change)
+        time_span = TimeSpan('1h')
+        datetime1 = dt(2015,10,25,0,15,0, tz='Europe/Rome')
+        datetime2 = datetime1 + time_span
+        datetime3 = datetime2 + time_span
+        datetime4 = datetime3 + time_span
+        datetime5 = datetime4 + time_span
+
+        self.assertEqual(str(datetime1), '2015-10-25 00:15:00+02:00')
+        self.assertEqual(str(datetime2), '2015-10-25 01:15:00+02:00')
+        self.assertEqual(str(datetime3), '2015-10-25 02:15:00+02:00')
+        self.assertEqual(str(datetime4), '2015-10-25 02:15:00+01:00')
+        self.assertEqual(str(datetime5), '2015-10-25 03:15:00+01:00')
+
+        # Sum a datetime (or anhything else other than another TimeSpan) to a TimeSpan: it does not make sense
+        with self.assertRaises(NotImplementedError):
+            TimeSpan('1h') + dt(2015,10,25,0,15,0, tz='Europe/Rome')
+
+        # Sum with a numerical value
+        time_span = TimeSpan('1h')
+        epoch1 = 3600
+        self.assertEqual(epoch1 + time_span, 7200)
+
+        # Subtract to other TimeSpan object
+        with self.assertRaises(NotImplementedError):
+            time_span_1 - time_span_2
+
+        # Subtract to a datetime object
+        with self.assertRaises(NotImplementedError):
+            time_span_1 - datetime1
+
+        # In general, subtracting to anything is not implemented
+        with self.assertRaises(NotImplementedError):
+            time_span_1 - 'hello'
+
+        # Subtract from a datetime (also on DST change)
+        time_span = TimeSpan('1h')
+        datetime1 = dt(2015,10,25,3,15,0, tz='Europe/Rome')
+        datetime2 = datetime1 - time_span
+        datetime3 = datetime2 - time_span
+        datetime4 = datetime3 - time_span
+        datetime5 = datetime4 - time_span
+
+        self.assertEqual(str(datetime1), '2015-10-25 03:15:00+01:00')
+        self.assertEqual(str(datetime2), '2015-10-25 02:15:00+01:00')
+        self.assertEqual(str(datetime3), '2015-10-25 02:15:00+02:00')
+        self.assertEqual(str(datetime4), '2015-10-25 01:15:00+02:00')
+        self.assertEqual(str(datetime5), '2015-10-25 00:15:00+02:00')
+
+        # Subtract from a numerical value
+        time_span = TimeSpan('1h')
+        epoch1 = 7200
+        self.assertEqual(epoch1 - time_span, 3600)
+
+        # Test sum with Time
+        time_span = TimeSpan('1h')
+        time = Time(60)
+        self.assertEqual((time+time_span), 3660)
+
+        # Test equal
+        time_span_1 = TimeSpan('15m')
+        self.assertEqual(time_span_1, 900)

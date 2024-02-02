@@ -25,21 +25,24 @@ class Time(float):
     It can be initialized in three main ways:
 
         * ``Time()``: if no arguments are given, then time is set to now;
-        * ``Time(1703517120.0)``: it the argument is a number, it is treated as Epoch seconds;
-        * ``Time(2023,5,6,13,45)``: if there is more than one argument, then use a datetime-like init mode.
+        * ``Time(1703517120.3)``: it the argument is a number, it is treated as Epoch seconds;
+        * ``Time(2023,5,6,13,45)``: if there is more than one argument, a datetime-like mode is used.
 
-    In all three cases, by default the time is assumed on UTC. To  create a time instance on a specific time zone,
-    or with a specific UTC offset, you can use their respective keyword arguments ``tz`` and ``offset``.
+    In all three cases, by default the time is assumed on UTC. To create a time instance on a specific time zone,
+    or with a specific UTC offset, you can use their respective keyword arguments ``tz`` and ``offset``. Sub-second precision
+    for the datetime-like initialization mode can be achieved by setting a flotaing point value to the seconds component.
+    Time can also be initialized using its string representation: ``Time(str(Time(2023,5,6,13,45, tz='US/Eastern'))`` will
+    instantiate a Time object equivalent to the original one.
 
-    The initialization in case of ambiguous or not-existent times generates an error:
+    The initialization in case of ambiguous or not-existent time specification generates an error:
     ``Time(2023,11,5,1,15, tz='US/Eastern')`` is ambiguous as there are "two" 1:15 AM on DST change on time zone
     US/Eastern, and ``Time(2023,3,12,2,30, tz='US/Eastern')`` just does not exists on such time zone. Creating ``Time``
     objects form an ambiguous time specification can be forced by enabling the "guessing" mode (``guessing=True``), but
     it will only be possible to create one of the two. To address the issue, use Epoch seconds or provide an UTC offset.
 
     Args:
-        *args: the time value, either as seconds (float), string representation, or datetime-like components (year, month, day, hour, minute, seconds).
-            If no value is given, then time is set to now.
+        *args: the time value, either as seconds (float), datetime-like components (year, month, day, hour, minute, second),
+            or string representation. If no value is given, then time is set to now.
         tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
         offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
             to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
@@ -417,7 +420,7 @@ class Time(float):
         """Return time as a string in ISO 8601 format."""
         return str_from_dt(self.to_dt())
 
-    def __str__(self):
+    def __repr__(self):
 
         self_as_float = float(self)
         decimal_part = str(self_as_float).split('.')[1]
@@ -441,8 +444,8 @@ class Time(float):
         else:
             return ('Time: {} ({}.{} {}{})'.format(self_as_float, self.to_dt().strftime('%Y-%m-%d %H:%M:%S'), decimal_part, tz_or_offset, dst_str))
 
-    def __repr__(self):
-        return self.__str__()
+    def __str__(self):
+        return self.__repr__()
 
     @staticmethod
     def __get_target_tz_and_offset(first, second):
@@ -637,9 +640,8 @@ class Time(float):
 
 
 class TimeSpan:
-    """A time span, that can have both fixed and variable time length (duration). Whether this
-    is variable or not, it depends if there are any calendar time components involved (years,
-    months, weeks and days).
+    """A time span, that can have both fixed and variable duration. Whether this is variable or not,
+    it depends if there are any calendar time components involved (years, months, weeks and days).
 
     Time spans support many operations, and can be added and subtracted with numerical values, Time and
     datetime objects, and other time spans.
@@ -834,6 +836,9 @@ class TimeSpan:
 
         string = string[:-1]
         return string
+
+    def __str__(self):
+        return self.__repr__()
 
     def __radd__(self, other):
         if isinstance(other, self.__class__):  
