@@ -38,8 +38,8 @@ class Time(float):
     it will only be possible to create one of the two. To address the issue, use Epoch seconds or provide an UTC offset.
 
     Args:
-        *args: the time value, either as seconds (float), string representation, or datetime-like 
-            components (year, month, day, hour, minute, seconds). If not given then time is now.
+        *args: the time value, either as seconds (float), string representation, or datetime-like components (year, month, day, hour, minute, seconds).
+            If no value is given, then time is set to now.
         tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
         offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
             to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
@@ -292,11 +292,25 @@ class Time(float):
 
         # Handle datetime-like init
         elif len(args) > 0:
+            if len(args) < 6:
+                raise ValueError('In this init mode you must provide all the components: year, month, day, hour, minute, second')
+            elif len(args) == 7:
+                raise ValueError('Got a 7th unexpected argument. If you are trying to set microseconds, use a floating point seconds value.')
+            elif len(args) > 7:
+                raise ValueError('Got too many argument, expected 6 (plus optional keyword-arguments)')
+
+            # Handle sub-second precision
+            if (isinstance(args[5], float) and not args[5].is_integer()):
+                decimals = args[5] - math.floor(args[5])
+                args = (args[0], args[1], args[2], args[3], args[4], math.floor(args[5]))
+            else:
+                decimals = 0
+
             try:
                 if tz is not None:
-                    s = s_from_dt(dt(*args, tz=tz, guessing=guessing))
+                    s = s_from_dt(dt(*args, tz=tz, guessing=guessing)) + decimals
                 elif offset != 'auto':
-                    s = s_from_dt(dt(*args, tz=tzoffset(None, offset)))
+                    s = s_from_dt(dt(*args, tz=tzoffset(None, offset))) + decimals
                 else:
                     raise ConsistencyError('No time zone nor offset set?')
 
@@ -306,7 +320,7 @@ class Time(float):
 
                     # Can we use the offset to remove the ambiguity?
                     if offset != 'auto':
-                        s = s_from_dt(dt(*args, tz=tzoffset(None, offset), guessing=guessing))
+                        s = s_from_dt(dt(*args, tz=tzoffset(None, offset), guessing=guessing)) + decimals
                     else:
                         raise ValueError('{}. Use guessing=True to allow creating it with a guess.'.format(e)) from None
                 else:

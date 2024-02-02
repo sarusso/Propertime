@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import sys
 import unittest
 import pytz
 from datetime import datetime
@@ -14,6 +15,9 @@ except:
 # Setup logging
 from .. import logger
 logger.setup()
+
+if not(sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
+    print('WARNING: Will skip sub-second offsets tests as not supported in Python 3.6 and older')
 
 
 class TestTime(unittest.TestCase):
@@ -109,19 +113,19 @@ class TestTime(unittest.TestCase):
             Time('Time: 1698538500.0 (2025-10-29 02:15:00 Europe/Rome DST)')
 
         # Time with datetime-like arguments
-        time = Time(2023,12,1)
+        time = Time(2023,12,1,0,0,0)
         self.assertEqual(time, 1701388800.0)
         self.assertEqual(str(time.to_dt()), '2023-12-01 00:00:00+00:00')
         self.assertEqual(str(time.tz), 'UTC')
 
         # Time with datetime-like arguments and time zone as argument
-        time = Time(2023,12,1, tz='Europe/Rome')
+        time = Time(2023,12,1,0,0,0, tz='Europe/Rome')
         self.assertEqual(time, 1701385200.0)
         self.assertEqual(str(time.to_dt()), '2023-12-01 00:00:00+01:00')
         self.assertEqual(str(time.tz), 'Europe/Rome')
 
         # Time with datetime-like arguments and offset as argument
-        time = Time(2023,12,1, tz=None, offset=3600)
+        time = Time(2023,12,1,0,0,0, tz=None, offset=3600)
         self.assertEqual(time, 1701385200.0)
         self.assertEqual(str(time.to_dt()), '2023-12-01 00:00:00+01:00')
         self.assertEqual(time.tz, None)
@@ -136,6 +140,12 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time.to_dt()), '2023-06-11 17:56:00+02:00')
         self.assertEqual(str(time.tz), 'Europe/Rome')
         self.assertEqual(time.offset, 7200)
+
+        # Time with datetime-like arguments and sub-second precision
+        time = Time(2023,12,1,0,0,0.89)
+        self.assertEqual(time, 1701388800.89)
+        self.assertEqual(str(time.to_dt()), '2023-12-01 00:00:00.890000+00:00')
+        self.assertEqual(str(time.tz), 'UTC')
 
         # Inconsistent time zone - offset combination
         with self.assertRaises(ValueError):
@@ -386,6 +396,11 @@ class TestTime(unittest.TestCase):
         time = Time(523291560, tz=None, offset=1234)
         self.assertEqual(time.to_dt(), datetime(1986,8,1,15,6,34, tzinfo=tzoffset(None, 1234)))
 
+        # To datetime, with a sub-second offset
+        if sys.version_info[0] >= 3 and sys.version_info[1] >= 7:
+            time = Time(900, tz=None, offset=2.6)
+            self.assertEqual(time.to_dt(), datetime(1970,1,1,0,15,2,600000, tzinfo=tzoffset(None, 2.6)))
+
         # To datetime, on Europe/Rome
         time = Time(523291560, tz='Europe/Rome')
         self.assertEqual(time.to_dt(), dt(1986,8,1,16,46,0, tz='Europe/Rome'))
@@ -395,7 +410,7 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time.to_iso(), '1986-08-01T16:46:00+02:00')
 
 
-    def test_string_representation(self):
+    def test_str(self):
 
         # UTC
         time = Time(523291560)
@@ -418,12 +433,9 @@ class TestTime(unittest.TestCase):
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06)')
 
         # Offset sub-second
-        import sys
         if sys.version_info[0] >= 3 and sys.version_info[1] >= 7:
             time = Time(523291560, tz=None, offset=3546.0945)
             self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 15:45:06 +00:59:06.094500)')
-        else:
-            print('WARNING: Skipping sub-second offsets test as not supported in Python 3.6')
 
         # Time zone
         time = Time(1702928535.0, tz='Europe/Rome')
@@ -432,7 +444,6 @@ class TestTime(unittest.TestCase):
         # Time zone plus DST
         time = Time(523291560, tz='Europe/Rome')
         self.assertEqual(str(time), 'Time: 523291560.0 (1986-08-01 16:46:00 Europe/Rome DST)')
-
 
 
     def test_as_offset_timezone(self):
