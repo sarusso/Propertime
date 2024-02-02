@@ -677,8 +677,8 @@ class TestTimeSpans(unittest.TestCase):
         time_span_1 = TimeSpan('15m')
         self.assertEqual(str(time_span_1), '15m')
 
-        time_span_2 = TimeSpan('15m_30s_3u')
-        self.assertEqual(str(time_span_2), '15m_30s_3u')
+        time_span_2 = TimeSpan('15m_30.3s')
+        self.assertEqual(str(time_span_2), '15m_30.3s')
 
         # Components init
         self.assertEqual(TimeSpan(days=1).days, 1)
@@ -699,30 +699,11 @@ class TestTimeSpans(unittest.TestCase):
         self.assertEqual(TimeSpan('1.234s').as_seconds(), 1.234)
         self.assertEqual(TimeSpan('1.02s').as_seconds(), 1.02)
         self.assertEqual(TimeSpan('1.000005s').as_seconds(), 1.000005)
-        self.assertEqual(TimeSpan('67.000005s').seconds, 67)
-        self.assertEqual(TimeSpan('67.000005s').microseconds, 5)
+        self.assertEqual(TimeSpan('67.000005s').seconds, 67.000005)
 
-        # Too much precision (below microseconds), gets cut
-        time_span = TimeSpan('1.0000005s')
-        self.assertEqual(str(time_span),'1s')
-        time_span = TimeSpan('1.0000065s')
-        self.assertEqual(str(time_span),'1s_6u')
-
-        # Test span values
-        self.assertEqual(TimeSpan(seconds=600).value, '600s') # Int converted to string representation
-        self.assertEqual(TimeSpan(seconds=600.0).value, '600s') # Float converted to string representation
-        self.assertEqual(TimeSpan(seconds=600.45).value, '600s_450000u') # Float converted to string representation (using microseconds)
-        self.assertEqual(TimeSpan(seconds=600.456).value, '600s_456000u') # Float converted to string representation (using microseconds)
-
-        self.assertEqual(TimeSpan(days=1).value, '1D')
-        self.assertEqual(TimeSpan(years=2).value, '2Y')
-        self.assertEqual(TimeSpan(minutes=1).value, '1m')
-        self.assertEqual(TimeSpan(minutes=15).value, '15m')
-        self.assertEqual(TimeSpan(hours=1).value, '1h')
-
-        self.assertEqual(time_span_1.value, '15m')
-        self.assertEqual(time_span_2.value, '15m_30s_3u')
-        self.assertEqual(TimeSpan(days=1).value, '1D') # This is obtained using the span's string representation
+        # Too much precision (below microseconds), raise an error
+        with self.assertRaises(ValueError):
+            TimeSpan('1.00000005s')
 
         # Test span simple equalities and inequalities
         self.assertEqual(TimeSpan(hours=1), TimeSpan(hours=1))
@@ -744,8 +725,24 @@ class TestTimeSpans(unittest.TestCase):
 
 
     def test_representations(self):
+
+        self.assertEqual(str(TimeSpan('600.0s')), '600s')
+
+        self.assertEqual(str(TimeSpan(seconds=600)), '600s')
+        self.assertEqual(str(TimeSpan(seconds=600.0)), '600s')
+        self.assertEqual(str(TimeSpan(seconds=600.45)), '600.45s') 
+
         self.assertEqual(str(TimeSpan(days=1)), '1D')
+        self.assertEqual(str(TimeSpan(years=2)), '2Y')
+        self.assertEqual(str(TimeSpan(minutes=1)), '1m')
+        self.assertEqual(str(TimeSpan(minutes=15)), '15m')
+        self.assertEqual(str(TimeSpan(hours=1)), '1h')
+
+        self.assertEqual(str(TimeSpan('15m')), '15m')
+        self.assertEqual(str(TimeSpan('15m_30.3s')), '15m_30.3s')
+
         self.assertEqual(repr(TimeSpan(days=1)), '1D')
+
 
 
     def test_as_seconds(self):
@@ -978,11 +975,11 @@ class TestTimeSpans(unittest.TestCase):
     def test_operations(self):
 
         time_span_1 = TimeSpan('15m')
-        time_span_2 = TimeSpan('15m_30s_3u')
+        time_span_2 = TimeSpan('15m_30.3s')
         time_span_3 = TimeSpan(days=1)
 
         # Sum with other TimeSpan objects
-        self.assertEqual(str(time_span_1+time_span_2+time_span_3), '1D_30m_30s_3u')
+        self.assertEqual(str(time_span_1+time_span_2+time_span_3), '1D_30m_30.3s')
 
         # Sum with datetime (also on DST change)
         time_span = TimeSpan('1h')

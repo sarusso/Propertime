@@ -30,7 +30,7 @@ class Time(float):
 
     In all three cases, by default the time is assumed on UTC. To create a time instance on a specific time zone,
     or with a specific UTC offset, you can use their respective keyword arguments ``tz`` and ``offset``. Sub-second precision
-    for the datetime-like initialization mode can be achieved by setting a flotaing point value to the seconds component.
+    for the datetime-like initialization mode can be achieved by setting a floating point value to the seconds component.
     Time can also be initialized using its string representation: ``Time(str(Time(2023,5,6,13,45, tz='US/Eastern'))`` will
     instantiate a Time object equivalent to the original one.
 
@@ -647,7 +647,8 @@ class TimeSpan:
     datetime objects, and other time spans.
 
     Their initialization supports both string representations and explicitly setting the various
-    components: years, months, weeks, days, hours, minutes, seconds and microseconds.
+    components: years, months, weeks, days, hours, minutes and seconds. Sub-second precision can be achieved
+    by setting a floating point value to the seconds component.
 
     In the string representation, the mapping is as follows:
 
@@ -658,7 +659,6 @@ class TimeSpan:
         * ``'h': 'hours'``
         * ``'m': 'minutes'``
         * ``'s': 'seconds'``
-        * ``'u': 'microseconds'``
 
     For example, to create a time span of one hour, the following four are equivalent:
 
@@ -730,8 +730,7 @@ class TimeSpan:
         days(:obj:`int`): the time span days component.
         hours (:obj:`int`): the time span hours component.
         minutes (:obj:`int`): the time span minutes component.
-        seconds (:obj:`int`, :obj:`float`): the time span seconds, possibly as float to include sub-second precision (up to the microsecond).
-        microseconds(:obj:`int`): the time span microseconds component.
+        seconds (:obj:`int`, :obj:`float`): the time span seconds, as float to include sub-second precision (up to the microsecond).
     """
 
     # NOT ref to https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes :  %d, %m, %w %y - %H, %M, %S
@@ -745,67 +744,80 @@ class TimeSpan:
                        'h': 'hours',
                        'm': 'minutes',
                        's': 'seconds',
-                       'u': 'microseconds'
                       }
 
-    def __init__(self, value=None, years=0, weeks=0, months=0, days=0, hours=0, minutes=0, seconds=0, microseconds=0):
+    def __init__(self, value=None, years=0, weeks=0, months=0, days=0, hours=0, minutes=0, seconds=0):
 
         # Value OR explicit time components
-        if value and (years or months or days or hours or minutes or seconds or microseconds):
+        if value and (years or months or days or hours or minutes or seconds):
             raise ValueError('Choose between string init and explicit setting of years, months, days, hours etc.')
 
-        # Special case for second/microsecond (TODO: improve/rethink me)
+        # Special case for second/microsecond
         if isinstance(seconds, float):
-            if microseconds:
-                raise ValueError('Choose between seconds as float or to use microseconds, got both.')
-            microseconds = int((seconds-int(math.floor(seconds)))*1000000)
-            seconds = int(math.floor(seconds))
+            if  seconds.is_integer():
+                seconds = int(seconds)
+                _int_seconds = seconds
+                _int_microseconds = 0
+            else:
+                _int_seconds = int(math.floor(seconds))
+                _int_microseconds = int((seconds-int(math.floor(seconds)))*1000000)
+        else:
+            _int_seconds = int(seconds)
+            _int_microseconds = 0
 
         # Set the time components
-        self.years        = years
-        self.months       = months
-        self.weeks        = weeks
-        self.days         = days
-        self.hours        = hours
-        self.minutes      = minutes 
-        self.seconds      = seconds
-        self.microseconds = microseconds
+        self.years = years
+        self.months = months
+        self.weeks = weeks
+        self.days = days
+        self.hours = hours
+        self.minutes = minutes 
+        self.seconds = seconds
+        self._int_seconds = _int_seconds
+        self._int_microseconds = _int_microseconds
 
         # Handle string value
         if value:
             if isinstance(value,str):
 
-                # Parse the value (as string), either as special case for floating point seconds
-                # or using the regex (TODO: improve/rethink me, maybe include everything in the regex)
-                if value.endswith('s') and '.' in value:
+                # Parse the value (as string), first handle seconds and microseconds special case
+                if value.endswith('s'):
 
+                    # Get the value as clena string ( 
                     if '_' in value:
-                        raise NotImplementedError('Composite TimeSpans with floating point seconds not yet implemented.')
-                    self.seconds = int(value.split('.')[0])
+                        value_seconds = value.split('_')[-1][:-1]
+                    else:
+                        value_seconds = value[:-1]
 
-                    # Get decimal seconds as value
-                    decimal_seconds_str = value.split('.')[1][0:-1] # Remove the last "s"
+                    if '.' in value_seconds and not float(value_seconds).is_integer():
+                        # Ensure we can handle precision
+                        value_decimal_seconds = value_seconds.split('.')[1][0:-1] 
+                        if len(value_decimal_seconds) > 6:
+                            raise ValueError('Sorry, "{}" has too many decimal seconds to be handled with a TimeSpan (which supports precision up to the microsecond).'.format(value))
 
-                    # Ensure we can handle precision
-                    if len(decimal_seconds_str) > 6:
-                        decimal_seconds_str = decimal_seconds_str[0:6]
-                        #raise ValueError('Sorry, "{}" has too many decimal seconds to be handled with a TimeSpan (which supports up to the microsecond).'.format(value))
+                        # Set
+                        self.seconds = float(value_seconds)
+                        self._int_seconds = int(math.floor(self.seconds))
+                        self._int_microseconds = int((self.seconds-int(math.floor(self.seconds)))*1000000)
 
-                    # Add missing trailing zeros
-                    missing_trailing_zeros = 6-len(decimal_seconds_str)
-                    for _ in range(missing_trailing_zeros):
-                        decimal_seconds_str += '0'
+                    else:
+                        self.seconds = int(float(value_seconds))
+                        self._int_seconds  = self.seconds
+                        self._int_microseconds = 0
 
-                    # Cast to int & set
-                    self.microseconds = int(decimal_seconds_str)
-
+                    # Was it composite? If so, redefine value withiut seconds
+                    if '_' in value:
+                        values_without_seconds = value.split('_')[:-1]
+                    else:
+                        values_without_seconds = []
                 else:
+                    values_without_seconds = value.split('_')
+
+                if values_without_seconds:
 
                     # Parse value using regex
-                    self.values = value.split("_")
-                    regex = re.compile('^([0-9]+)([YMDWhmsu]{1,2})$')
-
-                    for value in self.values:
+                    regex = re.compile('^([0-9]+)([YMDWhm]{1,2})$')
+                    for value in values_without_seconds:
                         try:
                             groups = regex.match(value).groups()
                         except AttributeError:
@@ -813,15 +825,10 @@ class TimeSpan:
 
                         setattr(self, self._mapping_table[groups[1]], int(groups[0]))
 
-                if not self.years and not self.months and not self.weeks and not self.days and not self.hours and not self.minutes and not self.seconds and not self.microseconds:
+                if not self.years and not self.months and not self.weeks and not self.days and not self.hours and not self.minutes and not self.seconds:
                     raise ValueError('Dont\'t know hot to create a TimeSpan from value "{}" of type {}'.format(value, value.__class__.__name__))
             else:
                 raise ValueError('Dont\'t know hot to create a TimeSpan from value "{}" of type {}'.format(value, value.__class__.__name__))
-
-    @property
-    def value(self):
-        """The value of the TimeSpan, as its string representation."""
-        return(str(self))
 
     def __repr__(self):
         string = ''
@@ -832,7 +839,6 @@ class TimeSpan:
         if self.hours: string += str(self.hours)               + 'h' + '_'
         if self.minutes: string += str(self.minutes)           + 'm' + '_'
         if self.seconds: string += str(self.seconds)           + 's' + '_'
-        if self.microseconds: string += str(self.microseconds) + 'u' + '_'
 
         string = string[:-1]
         return string
@@ -848,8 +854,7 @@ class TimeSpan:
                             days         = self.days + other.days,
                             hours        = self.hours + other.hours,
                             minutes      = self.minutes + other.minutes,
-                            seconds      = self.seconds + other.seconds,
-                            microseconds = self.microseconds + other.microseconds)
+                            seconds      = self.seconds + other.seconds)
 
         elif isinstance(other, datetime):
             if not other.tzinfo:
@@ -938,8 +943,6 @@ class TimeSpan:
                 return False
             if self.seconds != other.seconds:
                 return False
-            if self.microseconds != other.microseconds:
-                return False
             return True
 
             # Check using the duration in seconds (if defined), as 15m and 900s are actually the same span
@@ -949,14 +952,9 @@ class TimeSpan:
             except ValueError:
                 pass
 
-        # Check for direct equality with value, i.e. comparing with a string
-        if self.value == other:
+        # Check for direct equality with string representation
+        if str(self) == other:
             return True
-
-        # Check for equality on the same value
-        if isinstance(other, TimeSpan):
-            if self.value == other.value:
-                return True
 
         # Check for duration as seconds equality, i.e. comparing with a float
         try:
@@ -1116,8 +1114,8 @@ class TimeSpan:
                               days = self.days,
                               hours = self.hours,
                               minutes = self.minutes,
-                              seconds = self.seconds,
-                              microseconds = self.microseconds)
+                              seconds = self._int_seconds,
+                              microseconds = self._int_microseconds)
 
             # Apply the time delta for the shift
             time_shifted_dt = time_dt + delta
@@ -1209,8 +1207,6 @@ class TimeSpan:
                 time_span_s += self.minutes * 60
             if self.seconds:
                 time_span_s += self.seconds
-            if self.microseconds:
-                time_span_s += 1/1000000.0 * self.microseconds
 
         # Return
         return float(time_span_s)
