@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import sys
 import unittest
 import datetime
 import pytz
@@ -132,6 +133,11 @@ class TestUtilities(unittest.TestCase):
         date_time = dt(2023,12,3,16,12,0, naive=True)
         self.assertEqual(s_from_dt(date_time, tz='Europe/Rome'), 1701616320)
 
+        # Sub-second offset
+        if sys.version_info[0] >= 3 and sys.version_info[1] >= 7:
+            self.assertEqual(s_from_dt(datetime.datetime(1986,8,1,15,6,34, tzinfo=tzoffset(None, 2.4))),523292791.6)
+            self.assertEqual(s_from_dt(datetime.datetime(1986,8,1,15,6,34,100000, tzinfo=tzoffset(None, 2.4))),523292791.7)
+
 
     def test_dt_from_s(self):
 
@@ -139,8 +145,15 @@ class TestUtilities(unittest.TestCase):
         self.assertEqual(dt_from_s(1197244800), dt(2007,12,10,0,0, tz='UTC'))
 
         # Create a datetime from epoch seconds with a given time zone
-        self.assertEqual(dt_from_s(1197241200, tz='Europe/Rome'), dt(2007,12,10,0,0, tz='Europe/Rome'))
+        self.assertEqual(dt_from_s(900, tz='Europe/Rome'), dt(1970,1,1,1,15,0, tz='Europe/Rome'))
 
+        # Create a datetime from epoch seconds with a given time zone as offset
+        self.assertEqual(dt_from_s(900, tz=tzoffset(None,3600)), datetime.datetime(1970,1,1,1,15,0, tzinfo=tzoffset(None,3600)))
+
+        if sys.version_info[0] >= 3 and sys.version_info[1] >= 7:
+            # Create a datetime from epoch seconds with a given time zone as offset (sub-second)
+            self.assertEqual(dt_from_s(900, tz=tzoffset(None,3600.1)), datetime.datetime(1970,1,1,1,15,0,100000, tzinfo=tzoffset(None,3600.1)))
+            self.assertEqual(dt_from_s(900, tz=tzoffset(None,3600.01)), datetime.datetime(1970,1,1,1,15,0,10000, tzinfo=tzoffset(None,3600.01)))
 
     def test_str_conversions(self):
 

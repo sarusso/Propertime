@@ -206,37 +206,32 @@ def as_tz(dt, tz):
 
 def dt_from_s(s, tz='UTC'):
     """Create a datetime object from epoch seconds. If no time zone is given, UTC is assumed."""
-
-    try:
-        timestamp_dt = datetime.datetime.utcfromtimestamp(float(s))
-    except TypeError:
-        raise TypeError('The s argument must be string or number, got {}'.format(type(s)))
-
-    pytz_tz = timezonize(tz)
-    timestamp_dt = timestamp_dt.replace(tzinfo=pytz.utc).astimezone(pytz_tz)
-
-    return timestamp_dt
+    if not is_numerical(s):
+        raise TypeError('The argument must be of numerical type, got "{}"'.format(s.__class__.__name__))
+    if isinstance(tz, tzoffset):
+        return datetime.datetime.utcfromtimestamp(float(s)).replace(tzinfo=pytz.utc).astimezone(tz)
+    else:
+        dt_utc = datetime.datetime.utcfromtimestamp(float(s)).replace(tzinfo=pytz.utc)
+        if tz=='UTC':
+            return dt_utc
+        else:
+            tz = timezonize(tz)
+            if tz == pytz.UTC:
+                return dt_utc
+            else:
+                return dt_utc.astimezone(tz)
 
 
 def s_from_dt(dt, tz=None):
     """Return the epoch seconds from a datetime object, with floating point for milliseconds/microseconds."""
     if not (isinstance(dt, datetime.datetime)):
         raise TypeError('Function called without datetime argument, got "{}" instead'.format(dt.__class__.__name__))
-    try:
-        if dt.tzinfo is None and tz is None:
-            raise ValueError('Cannot convert to epoch seconds naive datetimes')
-        elif tz is not None:
-            tz = timezonize(tz)
-            dt = tz.localize(dt)
-        # This is the only safe approach. Some versions of Python around 3.4.4 - 3.7.3
-        # get the datetime.timestamp() wrong and compute seconds on local time zone.
-        microseconds_part = (dt.microsecond/1000000.0) if dt.microsecond else 0
-        return (calendar.timegm(dt.utctimetuple()) + microseconds_part)
-
-    except TypeError:
-        # This catch and tris to circumnavigate a specific bug in Pandas Timestamp():
-        # TypeError: an integer is required (https://github.com/pandas-dev/pandas/issues/32174)
-        return dt.timestamp()
+    if dt.tzinfo is None and tz is None:
+        raise ValueError('Cannot convert to epoch seconds naive datetimes')
+    elif tz is not None:
+        tz = timezonize(tz)
+        dt = tz.localize(dt)
+    return dt.timestamp()
 
 
 def dt_from_str(string, tz=None):
