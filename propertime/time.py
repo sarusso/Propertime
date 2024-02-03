@@ -44,7 +44,8 @@ class Time(float):
     Args:
         *args: the time value, either as seconds (float), datetime-like components (year, month, day, hour, minute, second)
             or string representation. If no value is given, then time is set to now.
-        tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
+        tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object (including pytz and
+          ZoneInfo). Defaults to 'UTC'.
         offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
             to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
         guessing (:obj:`bool`): if to enable guessing mode in case of ambiguous time specifications. Defaults to False.
@@ -563,12 +564,14 @@ class Time(float):
 
     @property
     def tz(self):
-        """The time zone of the time."""
+        """The time zone of the time. If this was set with a string (including the default 'UTC' value), then
+        this is a pytz object. Otherwise, it is the exact same object used for the tz argument, assuming it 
+        was a valid tzinfo (e.g. a ZoneInfo)."""
         return self._tz
 
     @property
     def offset(self):
-        """The (UTC) offset of the time."""
+        """The (UTC) offset of the time, in seconds."""
         return self._offset
 
     def as_tz(self, tz):
@@ -637,8 +640,8 @@ class Time(float):
 
 
 class TimeSpan:
-    """A time span object, that can have either fixed or variable length. Whether this is variable or not,
-    it depends if there are any calendar time components involved (years, months, weeks and days).
+    """A time span object, that can have either fixed or variable length (duration). Whether this is variable
+    or not, it depends if there are any calendar time components involved (years, months, weeks and days).
 
     Time spans support many operations, and can be added and subtracted with numerical values, Propertime's time
     objects, datetime objects, as well as other time spans.

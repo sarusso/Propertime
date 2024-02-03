@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """Time manipulation utilities"""
 
-import datetime, calendar, pytz
+import datetime
+import calendar
+import pytz
 from dateutil.tz.tz import tzoffset
-try:
-    from zoneinfo import ZoneInfo
-except:
-    ZoneInfo = None
+from datetime import tzinfo
 
 import logging
 logger = logging.getLogger(__name__)
@@ -14,32 +13,18 @@ logger = logging.getLogger(__name__)
 UTC = pytz.UTC
 
 def timezonize(tz):
-    """Convert a string representation of a time zone to its pytz object, or
-    do nothing if the argument is already a pytz time zone or tzoffset, or None."""
-
-    # Checking if something is a valid pytz object is hard as it seems that they are spread around the pytz package.
-    #
-    # Option 1): Try to convert if string or unicode, otherwise try to instantiate a datetieme object decorated
-    # with the time zone in order to check if it is a valid one. 
-    #
-    # Option 2): Get all members of the pytz package and check for type, see
-    # http://stackoverflow.com/questions/14570802/python-check-if-object-is-instance-of-any-class-from-a-certain-module
-    #
-    # Option 3) perform a hand-made test. We go for this one, tests would fail if something changes in this approach.
+    """Convert a string representation of a time zone to a pytz object, or just 
+    re-return the argument if this is already a valid time zone, offset or None"""
 
     if tz is None:
+        return None
+
+    elif isinstance(tz,tzinfo) or isinstance(tz, tzoffset):
         return tz
 
-    if isinstance(tz,tzoffset):
-        return tz
+    else:
+        return pytz.timezone(tz)
 
-    if ZoneInfo and isinstance(tz, ZoneInfo):
-        return tz
-
-    if not 'pytz' in str(type(tz)):
-        tz = pytz.timezone(tz)
-
-    return tz
 
 
 def is_dt_inconsistent(dt):
@@ -138,7 +123,10 @@ def dt(*args, **kwargs):
         elif isinstance(tz, tzoffset):
             time_dt = datetime.datetime(*args, tzinfo=tz)
         else:
-            time_dt = tz.localize(datetime.datetime(*args))
+            try:
+                time_dt = tz.localize(datetime.datetime(*args))
+            except AttributeError:
+                time_dt = datetime.datetime(*args, tzinfo=tz)
 
         if not trustme and tz and tz != UTC:
             if is_dt_ambiguous_without_offset(time_dt):

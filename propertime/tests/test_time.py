@@ -10,14 +10,14 @@ from dateutil.tz.tz import tzoffset
 try:
     from zoneinfo import ZoneInfo
 except:
+    print('WARNING: Will skip sub-second offsets tests as not supported until Python 3.9')
     ZoneInfo = None
+if not(sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
+    print('WARNING: Will skip sub-second offsets tests as not supported until Python 3.7')
 
 # Setup logging
 from .. import logger
 logger.setup()
-
-if not(sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
-    print('WARNING: Will skip sub-second offsets tests as not supported in Python 3.6 and older')
 
 
 class TestTime(unittest.TestCase):
@@ -64,6 +64,7 @@ class TestTime(unittest.TestCase):
 
         # Time (UTC by default) with explicit offset
         time = Time(1702928535.0, offset=0)
+        self.assertEqual(time, 1702928535)
         self.assertEqual(time.tz, pytz.UTC)
         self.assertEqual(time.offset, 0)
 
@@ -73,21 +74,36 @@ class TestTime(unittest.TestCase):
 
         # Time (no time zone) with explicit offset
         time = Time(1702928535.0, tz=None, offset=7200)
+        self.assertEqual(time, 1702928535)
         self.assertEqual(time.tz, None)
         self.assertEqual(time.offset, 7200)
 
         time = Time(1702928535.0, tz=None, offset=-68400)
+        self.assertEqual(time, 1702928535)
         self.assertEqual(time.tz, None)
         self.assertEqual(time.offset, -68400)
 
         # Time with time zone
         time = Time(1702928535.0, tz='America/New_York')
+        self.assertEqual(time, 1702928535)
         self.assertEqual(str(time.tz), 'America/New_York')
         self.assertEqual(time.offset, -18000)
 
         time = Time(1702928535.0, tz='Europe/Rome')
+        self.assertEqual(time, 1702928535)
         self.assertEqual(str(time.tz), 'Europe/Rome')
         self.assertEqual(time.offset, 3600)
+
+        time = Time(1702928535.0, tz=pytz.timezone('Europe/Rome'))
+        self.assertEqual(time, 1702928535)
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 3600)
+
+        if ZoneInfo:
+            time = Time(1702928535.0, tz=ZoneInfo('Europe/Rome'))
+            self.assertEqual(time, 1702928535)
+            self.assertEqual(str(time.tz), 'Europe/Rome')
+            self.assertEqual(time.offset, 3600)
 
         # Test from Time string representation
         time = Time(1650196535.0)
@@ -123,6 +139,17 @@ class TestTime(unittest.TestCase):
         self.assertEqual(time, 1701385200.0)
         self.assertEqual(str(time.to_dt()), '2023-12-01 00:00:00+01:00')
         self.assertEqual(str(time.tz), 'Europe/Rome')
+
+        time = Time(2023,12,1,0,0,0, tz=pytz.timezone('Europe/Rome'))
+        self.assertEqual(time, 1701385200)
+        self.assertEqual(str(time.tz), 'Europe/Rome')
+        self.assertEqual(time.offset, 3600)
+
+        if ZoneInfo:
+            time = Time(2023,12,1,0,0,0, tz=ZoneInfo('Europe/Rome'))
+            self.assertEqual(time, 1701385200)
+            self.assertEqual(str(time.tz), 'Europe/Rome')
+            self.assertEqual(time.offset, 3600)
 
         # Time with datetime-like arguments and offset as argument
         time = Time(2023,12,1,0,0,0, tz=None, offset=3600)
@@ -195,6 +222,50 @@ class TestTime(unittest.TestCase):
         self.assertTrue(Time(123).is_integer())
         self.assertTrue(Time(123.0).is_integer())
         self.assertFalse(Time(123.4).is_integer())
+
+    def test_properties(self):
+
+        time = Time(3600, offset=10, tz=None)
+        self.assertEqual(time.offset, 10)
+        self.assertIsInstance(time.offset, int)
+
+        time = Time(3600, offset=10.0, tz=None)
+        self.assertEqual(time.offset, 10.0)
+        self.assertIsInstance(time.offset, float)
+
+        time = Time(3600, tz=pytz.UTC)
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        time = Time(3600, tz='America/New_York')
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        time = Time(3600, tz=pytz.timezone('America/New_York'))
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        if ZoneInfo:
+            time = Time(2023,12,3,10,12,0, tz=ZoneInfo('America/New_York'))
+            self.assertIsInstance(time.tz, ZoneInfo)
+
+        time = Time(2023,12,3,10,12,0)
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        time = Time(2023,12,3,10,12,0, tz=pytz.UTC)
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        time = Time(2023,12,3,10,12,0, tz='America/New_York')
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        time = Time(2023,12,3,10,12,0, tz=pytz.timezone('America/New_York'))
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+
+        if ZoneInfo:
+            time = Time(2023,12,3,10,12,0, tz=ZoneInfo('America/New_York'))
+            self.assertIsInstance(time.tz, ZoneInfo)
+
+        time = Time(3600)
+        self.assertIsInstance(time.tz, pytz.BaseTzInfo)
+        self.assertEqual(time.offset, 0)
+        self.assertIsInstance(time.offset, int)
 
 
     def test_conversions(self):
