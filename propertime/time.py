@@ -18,224 +18,37 @@ logger = logging.getLogger(__name__)
 
 
 class Time(float):
-    """A Time object, as a floating point number corresponding the number of seconds after the zero on the
-    time axis (Epoch), which is set to 1st January 1970 UTC. Any other representations (as dates and hours, 
-    time zones, daylight saving times) are built on top of it.
+    """A time object, as a floating point number corresponding to the number of seconds after the zero on the time axis.
+    This is commonly known as Epoch, and set to 1st January 1970 UTC. Any other representations (as calendar time,
+    time zones and daylight saving times) are built on top of it.
 
     It can be initialized in three main ways:
 
         * ``Time()``: if no arguments are given, then time is set to now;
         * ``Time(1703517120.3)``: it the argument is a number, it is treated as Epoch seconds;
-        * ``Time(2023,5,6,13,45)``: if there is more than one argument, a datetime-like mode is used.
+        * ``Time(2023,5,6,13,45)``: if there is more than one argument, a datetime-like mode is
+          used, with year, month, day, hour and second components all mandatory and in this order.
 
     In all three cases, by default the time is assumed on UTC. To create a time instance on a specific time zone,
     or with a specific UTC offset, you can use their respective keyword arguments ``tz`` and ``offset``. Sub-second precision
     for the datetime-like initialization mode can be achieved by setting a floating point value to the seconds component.
     Time can also be initialized using its string representation: ``Time(str(Time(2023,5,6,13,45, tz='US/Eastern'))`` will
-    instantiate a Time object equivalent to the original one.
+    instantiate a time object equivalent to the original one.
 
-    The initialization in case of ambiguous or not-existent time specification generates an error:
+    The initialization in case of ambiguous or not-existent time specifications generates an error:
     ``Time(2023,11,5,1,15, tz='US/Eastern')`` is ambiguous as there are "two" 1:15 AM on DST change on time zone
-    US/Eastern, and ``Time(2023,3,12,2,30, tz='US/Eastern')`` just does not exists on such time zone. Creating ``Time``
+    US/Eastern, and ``Time(2023,3,12,2,30, tz='US/Eastern')`` just does not exists on such time zone. Creating time
     objects form an ambiguous time specification can be forced by enabling the "guessing" mode (``guessing=True``), but
-    it will only be possible to create one of the two. To address the issue, use Epoch seconds or provide an UTC offset.
+    it will only be possible to create one of the two. To address this issue, use Epoch seconds or provide an UTC offset.
 
     Args:
-        *args: the time value, either as seconds (float), datetime-like components (year, month, day, hour, minute, second),
+        *args: the time value, either as seconds (float), datetime-like components (year, month, day, hour, minute, second)
             or string representation. If no value is given, then time is set to now.
         tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
         offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
             to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
         guessing (:obj:`bool`): if to enable guessing mode in case of ambiguous time specifications. Defaults to False.
     """
-
-    @classmethod
-    def from_dt(cls, dt, tz='auto', offset='auto', guessing=False):
-        """Create a Time object form a datetime. If naive, then a time zone or an offset is required.
-
-        Please note that tz and offset arguments, if set to something else than "auto" when using a
-        timezone-aware (or offset-aware) datetime, will "move" it to the given time zone or offset.
-
-        For example, ``Time.from_dt(dt(2023,5,6,13,45, tz='US/Eastern'), tz='Europe/Rome')`` will result
-        in the Time object corresponding to 2023-05-06 19:45:00 Europe/Rome.
-
-        Args:
-            dt (:obj:`datetime`): the datetime from which to create the new Time object.
-            tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
-            offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
-                to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
-            guessing (:obj:`bool`): if to enable guessing mode in case of ambiguous time specifications. Defaults to False.
-        """
-
-        # Set given time zone and offset
-        given_offset = offset if offset != 'auto' else None
-        given_tz = tz if  tz != 'auto' else None
-
-        # Set embedded time zone and offset
-        if not dt.tzinfo:
-            embedded_offset = None
-            embedded_tz = None
-        else:
-            if isinstance(dt.tzinfo, tzoffset):
-                embedded_offset = get_offset_from_dt(dt)
-                embedded_tz = None
-            else:
-                embedded_offset = None
-                embedded_tz = dt.tzinfo
-
-        # Handle naive datetime or extract time zone/offset
-        if embedded_offset is None and embedded_tz is None:
-
-            # Look at the tz argument if any, and decorate
-            if given_tz is not None:
-                dt = timezonize(given_tz).localize(dt)
-
-            # Look at the offset argument if any, and decorate
-            elif given_offset is not None:
-                dt = pytz.UTC.localize(dt).replace(tzinfo = tzoffset(None, given_offset))
-
-            # Otherwise, raise
-            else:
-                raise ValueError('Got a naive datetime, please set its time zone or offset')
-
-            # Check for potential ambiguity
-            if is_dt_ambiguous_without_offset(dt):
-                dt_naive = dt.replace(tzinfo=None)
-                if not guessing:
-                    raise ValueError('Sorry, datetime {} is ambiguous on time zone {} without an offset'.format(dt_naive, dt.tzinfo))
-                else:
-                    # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utilities
-                    iso_time_part = str_from_dt(dt).split('T')[1]
-                    if '+' in iso_time_part:
-                        offset_assumed = '+'+iso_time_part.split('+')[1]
-                    else:
-                        offset_assumed = '-'+iso_time_part.split('-')[1]
-                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(dt_naive, tz, offset_assumed))
-
-        # Now convert the (always time zone or offset -aware) datetime to seconds
-        s = s_from_dt(dt)
-
-        target_offset = None
-        target_tz = None
-
-        # Set target time zone and offset
-        if given_tz is not None:
-            target_tz = given_tz
-        else:
-            if embedded_tz is not None:
-                if given_offset is None:
-                    target_tz = embedded_tz
-
-        if given_offset is not None:
-            if given_tz is None: 
-                target_offset = given_offset
-        else:
-            if embedded_offset is not None:
-                if given_tz is None:
-                    target_offset = embedded_offset
-
-        # From "None" to "auto" (only for the offset)
-        if target_offset is None:
-            target_offset = 'auto'
-
-        # ..and create the new object
-        obj = cls(s, tz=target_tz, offset=target_offset)
-
-        # Lastly, if both time zone and offset were given, check for consistency
-        if given_tz is not None and given_offset is not None:
-            if obj.offset != given_offset:
-                raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(given_offset, target_tz) + 
-                                 '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(obj.offset))
-
-        return obj
-
-
-    @classmethod
-    def from_iso(cls, iso, tz='auto', offset='auto'):
-        """Create a Time object form an ISO 8601 string. If naive, then a time zone or an offset is required.
-
-        Please note that tz and offset arguments, if set to something else than "auto" when using a
-        UTC-aware (or offset-aware) ISO string, will "move" it to the given time zone or offset.
-
-        For example, ``Time.from_iso('2023-12-25T16:12:00+01:00', tz='US/Eastern')`` will result
-        in the Time object corresponding to 2023-12-25 10:12:00 US/Eastern.
-
-        Args:
-            dt (:obj:`datetime`): the datetime from which to create the new Time object.
-            tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
-            offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
-                to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
-        """
-
-        # Set given time zone and offset
-        given_offset = offset if offset != 'auto' else None
-        given_tz = tz if  tz != 'auto' else None
-
-        # By default there is no embedded time zone or offset
-        embedded_offset = None
-        embedded_tz = None
-
-        # Handle naive iso
-        if not (iso[-1] == 'Z' or '+' in iso or ('-' in iso and '-' in iso.split('T')[1])):
-
-            # Look at the tz argument if any, and use it
-            if given_tz:
-                dt = dt_from_str(iso, tz=given_tz)
-
-            # Look at the offset argument if any, and use it
-            elif given_offset is not None:
-                dt = dt_from_str(iso, tz=tzoffset(None, given_offset))
-
-            # Otherwise, raise
-            else:
-                raise ValueError('Got a naive ISO string, please set its time zone or offset')
-
-        else:
-            dt = dt_from_str(iso)
-
-            # Handle embedded time zone (only Zulu, which is UTC) or offset 
-            if iso[-1] == 'Z':
-                embedded_tz = pytz.UTC
-            else:
-                embedded_offset = dt.utcoffset().seconds
-
-        # Now convert the (always time zone or offset -aware) datetime to seconds
-        s = s_from_dt(dt)
-
-        target_offset = None
-        target_tz = None
-
-        # Set target time zone and offset
-        if given_tz is not None:
-            target_tz = given_tz
-        else:
-            if embedded_tz is not None:
-                if given_offset is None:
-                    target_tz = embedded_tz
-
-        if given_offset is not None:
-            if given_tz is None: 
-                target_offset = given_offset
-        else:
-            if embedded_offset is not None:
-                if given_tz is None:
-                    target_offset = embedded_offset
-
-        # From "None" to "auto" (only for the offset)
-        if target_offset is None:
-            target_offset = 'auto'
-
-        # ..and create the new object
-        obj = cls(s, tz=target_tz, offset=target_offset)
-
-        # Lastly, if both time zone and offset were given, check for consistency
-        if given_tz is not None and given_offset is not None:
-            if obj.offset != given_offset:
-                raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(given_offset, target_tz) + 
-                                 '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(obj.offset))
-
-        return obj
-
 
     def __new__(cls, *args, tz='UTC', offset='auto', guessing=False):
 
@@ -357,69 +170,6 @@ class Time(float):
 
         return time_instance
 
-    @property
-    def tz(self):
-        """The time zone of the time."""
-        return self._tz
-
-    def as_tz(self, tz):
-        """Get this time on another time zone."""
-
-        new_obj = copy.deepcopy(self)
-        new_obj._tz = tz
-
-        # Reset dt cache if present
-        try:
-            del new_obj._dt
-        except AttributeError:
-            pass
-
-        # Set the offset accordingly to the time zone
-        sign = -1 if new_obj.to_dt().utcoffset().days < 0 else 1 
-        new_obj._offset = sign * new_obj.to_dt().utcoffset().seconds
-
-        return new_obj
-
-    @property
-    def offset(self):
-        """The (UTC) offset of the time."""
-        return self._offset
-
-    def as_offset(self, offset):
-        """Get this time with another (UTC) offset."""
-
-        new_obj = copy.deepcopy(self)
-        new_obj._offset = offset
-
-        # Reset dt cache
-        try:
-            del new_obj._dt
-        except AttributeError:
-            pass
-
-        # Unset the time zone
-        new_obj._tz = None
-
-        return new_obj
-
-    def to_dt(self):
-        """Return time as a datetime object."""
-        try:
-            return self._dt
-        except AttributeError:
-            try:
-                if self.tz:
-                    self._dt = dt_from_s(self, tz=self.tz)
-                else:
-                    self._dt = dt_from_s(self, tz=tzoffset(None, self.offset))
-                return self._dt
-            except Exception as e:
-                raise e.__class__('{} (time as float: "{}", offset: "{}", tz: "{}")'.format(e, float(self), self.offset, self.tz)) from None
-
-    def to_iso(self):
-        """Return time as a string in ISO 8601 format."""
-        return str_from_dt(self.to_dt())
-
     def __repr__(self):
 
         self_as_float = float(self)
@@ -448,7 +198,7 @@ class Time(float):
         return self.__repr__()
 
     @staticmethod
-    def __get_target_tz_and_offset(first, second):
+    def _get_target_tz_and_offset(first, second):
 
         target_tz = None
         target_offset = 'auto'
@@ -509,8 +259,7 @@ class Time(float):
 
         return target_tz, target_offset
 
-
-    def __operation(self, other, caller):
+    def _operation(self, other, caller):
 
         def compute(first, second, caller):
 
@@ -547,11 +296,11 @@ class Time(float):
                 return second // first
 
         if isinstance(other, self.__class__):
-            target_tz, target_offset = self.__get_target_tz_and_offset(self, other)
+            target_tz, target_offset = self._get_target_tz_and_offset(self, other)
             target_value = compute(float(self), float(other), caller)
 
         elif isinstance(other, datetime):
-            target_tz, target_offset = self.__get_target_tz_and_offset(self, other)
+            target_tz, target_offset = self._get_target_tz_and_offset(self, other)
             target_value = compute(float(self), s_from_dt(other), caller)
 
         elif isinstance(other, TimeSpan):
@@ -567,58 +316,299 @@ class Time(float):
         return Time(target_value, tz=target_tz, offset=target_offset)
 
     def __add__(self, other):
-        return self.__operation(other, self.__add__)
+        return self._operation(other, self.__add__)
 
     def __sub__(self, other):
-        return self.__operation(other, self.__sub__)
+        return self._operation(other, self.__sub__)
 
     def __mul__(self, other):
-        return self.__operation(other, self.__mul__)
+        return self._operation(other, self.__mul__)
 
     def __truediv__(self, other):
-        return self.__operation(other, self.__truediv__)
+        return self._operation(other, self.__truediv__)
 
     def __mod__(self, other):
-        return self.__operation(other, self.__mod__)
+        return self._operation(other, self.__mod__)
 
     def __pow__(self, other):
-        return self.__operation(other, self.__pow__)
+        return self._operation(other, self.__pow__)
 
     def __floordiv__(self, other):
-        return self.__operation(other, self.__floordiv__)
+        return self._operation(other, self.__floordiv__)
 
     def __radd__(self, other):
-        return self.__operation(other, self.__radd__)
+        return self._operation(other, self.__radd__)
 
     def __rsub__(self, other):
-        return self.__operation(other, self.__rsub__)
+        return self._operation(other, self.__rsub__)
 
     def __rmul__(self, other):
-        return self.__operation(other, self.__rmul__)
+        return self._operation(other, self.__rmul__)
 
     def __rtruediv__(self, other):
-        return self.__operation(other, self.__rtruediv__)
+        return self._operation(other, self.__rtruediv__)
 
     def __rmod__(self, other):
-        return self.__operation(other, self.__rmod__)
+        return self._operation(other, self.__rmod__)
 
     def __rpow__(self, other):
-        return self.__operation(other, self.__rpow__)
+        return self._operation(other, self.__rpow__)
 
     def __rfloordiv__(self, other):
-        return self.__operation(other, self.__rfloordiv__)
+        return self._operation(other, self.__rfloordiv__)
 
-    def conjugate(self):
-        """Disabled. It does not make sense to use imaginary numbers with time."""
-        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+    @classmethod
+    def from_dt(cls, dt, tz='auto', offset='auto', guessing=False):
+        """Create a Time object form a datetime. If naive, then a time zone or an offset is required.
 
-    def imag(self):
-        """Disabled. It does not make sense to use imaginary numbers with time."""
-        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+        Please note that tz and offset arguments, if set to something else than "auto" when using a
+        timezone-aware (or offset-aware) datetime, will "move" it to the given time zone or offset.
 
-    def real(self):
-        """Disabled. It does not make sense to use imaginary numbers with time."""
-        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+        For example, ``Time.from_dt(dt(2023,5,6,13,45, tz='US/Eastern'), tz='Europe/Rome')`` will result
+        in the Time object corresponding to 2023-05-06 19:45:00 Europe/Rome.
+
+        Args:
+            dt (:obj:`datetime`): the datetime from which to create the new Time object.
+            tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
+            offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
+                to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
+            guessing (:obj:`bool`): if to enable guessing mode in case of ambiguous time specifications. Defaults to False.
+        """
+
+        # Set given time zone and offset
+        given_offset = offset if offset != 'auto' else None
+        given_tz = tz if  tz != 'auto' else None
+
+        # Set embedded time zone and offset
+        if not dt.tzinfo:
+            embedded_offset = None
+            embedded_tz = None
+        else:
+            if isinstance(dt.tzinfo, tzoffset):
+                embedded_offset = get_offset_from_dt(dt)
+                embedded_tz = None
+            else:
+                embedded_offset = None
+                embedded_tz = dt.tzinfo
+
+        # Handle naive datetime or extract time zone/offset
+        if embedded_offset is None and embedded_tz is None:
+
+            # Look at the tz argument if any, and decorate
+            if given_tz is not None:
+                dt = timezonize(given_tz).localize(dt)
+
+            # Look at the offset argument if any, and decorate
+            elif given_offset is not None:
+                dt = pytz.UTC.localize(dt).replace(tzinfo = tzoffset(None, given_offset))
+
+            # Otherwise, raise
+            else:
+                raise ValueError('Got a naive datetime, please set its time zone or offset')
+
+            # Check for potential ambiguity
+            if is_dt_ambiguous_without_offset(dt):
+                dt_naive = dt.replace(tzinfo=None)
+                if not guessing:
+                    raise ValueError('Sorry, datetime {} is ambiguous on time zone {} without an offset'.format(dt_naive, dt.tzinfo))
+                else:
+                    # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utilities
+                    iso_time_part = str_from_dt(dt).split('T')[1]
+                    if '+' in iso_time_part:
+                        offset_assumed = '+'+iso_time_part.split('+')[1]
+                    else:
+                        offset_assumed = '-'+iso_time_part.split('-')[1]
+                    logger.warning('Time {} is ambiguous on time zone {}, assuming {} UTC offset'.format(dt_naive, tz, offset_assumed))
+
+        # Now convert the (always time zone or offset -aware) datetime to seconds
+        s = s_from_dt(dt)
+
+        target_offset = None
+        target_tz = None
+
+        # Set target time zone and offset
+        if given_tz is not None:
+            target_tz = given_tz
+        else:
+            if embedded_tz is not None:
+                if given_offset is None:
+                    target_tz = embedded_tz
+
+        if given_offset is not None:
+            if given_tz is None:
+                target_offset = given_offset
+        else:
+            if embedded_offset is not None:
+                if given_tz is None:
+                    target_offset = embedded_offset
+
+        # From "None" to "auto" (only for the offset)
+        if target_offset is None:
+            target_offset = 'auto'
+
+        # ..and create the new object
+        obj = cls(s, tz=target_tz, offset=target_offset)
+
+        # Lastly, if both time zone and offset were given, check for consistency
+        if given_tz is not None and given_offset is not None:
+            if obj.offset != given_offset:
+                raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(given_offset, target_tz) +
+                                 '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(obj.offset))
+
+        return obj
+
+    @classmethod
+    def from_iso(cls, iso, tz='auto', offset='auto'):
+        """Create a Time object form an ISO 8601 string. If naive, then a time zone or an offset is required.
+
+        Please note that tz and offset arguments, if set to something else than "auto" when using a
+        UTC-aware (or offset-aware) ISO string, will "move" it to the given time zone or offset.
+
+        For example, ``Time.from_iso('2023-12-25T16:12:00+01:00', tz='US/Eastern')`` will result
+        in the Time object corresponding to 2023-12-25 10:12:00 US/Eastern.
+
+        Args:
+            dt (:obj:`datetime`): the datetime from which to create the new Time object.
+            tz (:obj:`str`, :obj:`tzinfo`): the time zone, either as string representation or tzinfo object. Defaults to 'UTC'.
+            offset (:obj:`float`, :obj:`int`): the offset, in seconds, with respect to UTC. Defaults to 'auto', which sets it accordingly
+                to the time zone. If set explicitly, it has to be consistent with the time zone, or the time zone has to be set to None.
+        """
+
+        # Set given time zone and offset
+        given_offset = offset if offset != 'auto' else None
+        given_tz = tz if  tz != 'auto' else None
+
+        # By default there is no embedded time zone or offset
+        embedded_offset = None
+        embedded_tz = None
+
+        # Handle naive iso
+        if not (iso[-1] == 'Z' or '+' in iso or ('-' in iso and '-' in iso.split('T')[1])):
+
+            # Look at the tz argument if any, and use it
+            if given_tz:
+                dt = dt_from_str(iso, tz=given_tz)
+
+            # Look at the offset argument if any, and use it
+            elif given_offset is not None:
+                dt = dt_from_str(iso, tz=tzoffset(None, given_offset))
+
+            # Otherwise, raise
+            else:
+                raise ValueError('Got a naive ISO string, please set its time zone or offset')
+
+        else:
+            dt = dt_from_str(iso)
+
+            # Handle embedded time zone (only Zulu, which is UTC) or offset
+            if iso[-1] == 'Z':
+                embedded_tz = pytz.UTC
+            else:
+                embedded_offset = dt.utcoffset().seconds
+
+        # Now convert the (always time zone or offset -aware) datetime to seconds
+        s = s_from_dt(dt)
+
+        target_offset = None
+        target_tz = None
+
+        # Set target time zone and offset
+        if given_tz is not None:
+            target_tz = given_tz
+        else:
+            if embedded_tz is not None:
+                if given_offset is None:
+                    target_tz = embedded_tz
+
+        if given_offset is not None:
+            if given_tz is None:
+                target_offset = given_offset
+        else:
+            if embedded_offset is not None:
+                if given_tz is None:
+                    target_offset = embedded_offset
+
+        # From "None" to "auto" (only for the offset)
+        if target_offset is None:
+            target_offset = 'auto'
+
+        # ..and create the new object
+        obj = cls(s, tz=target_tz, offset=target_offset)
+
+        # Lastly, if both time zone and offset were given, check for consistency
+        if given_tz is not None and given_offset is not None:
+            if obj.offset != given_offset:
+                raise ValueError('An offset of {} for this time instance is inconsistent with its time zone "{}" '.format(given_offset, target_tz) +
+                                 '(which requires it to be {}). Please explicitly disable the time zone with tz=None.'.format(obj.offset))
+
+        return obj
+
+    def to_dt(self):
+        """Return time as a datetime object."""
+        try:
+            return self._dt
+        except AttributeError:
+            try:
+                if self.tz:
+                    self._dt = dt_from_s(self, tz=self.tz)
+                else:
+                    self._dt = dt_from_s(self, tz=tzoffset(None, self.offset))
+                return self._dt
+            except Exception as e:
+                raise e.__class__('{} (time as float: "{}", offset: "{}", tz: "{}")'.format(e, float(self), self.offset, self.tz)) from None
+
+    def to_iso(self):
+        """Return time as a string in ISO 8601 format."""
+        return str_from_dt(self.to_dt())
+
+    @property
+    def tz(self):
+        """The time zone of the time."""
+        return self._tz
+
+    @property
+    def offset(self):
+        """The (UTC) offset of the time."""
+        return self._offset
+
+    def as_tz(self, tz):
+        """Get this time on another time zone."""
+
+        new_obj = copy.deepcopy(self)
+        new_obj._tz = tz
+
+        # Reset dt cache if present
+        try:
+            del new_obj._dt
+        except AttributeError:
+            pass
+
+        # Set the offset accordingly to the time zone
+        sign = -1 if new_obj.to_dt().utcoffset().days < 0 else 1
+        new_obj._offset = sign * new_obj.to_dt().utcoffset().seconds
+
+        return new_obj
+
+    def as_offset(self, offset):
+        """Get this time with another (UTC) offset."""
+
+        new_obj = copy.deepcopy(self)
+        new_obj._offset = offset
+
+        # Reset dt cache
+        try:
+            del new_obj._dt
+        except AttributeError:
+            pass
+
+        # Unset the time zone
+        new_obj._tz = None
+
+        return new_obj
+
+    def is_integer(self):
+        """Return True if time is an integer, i.e. it has no or zero sub-seconds."""
+        return super().is_integer()
 
     def as_integer_ratio(self):
         """Return time as integer ratio."""
@@ -633,22 +623,29 @@ class Time(float):
         """Return a hexadecimal representation of time."""
         return super().hex()
 
-    def is_integer(self):
-        """Return True if time is an integer, i.e. it has zero sub-seconds."""
-        return super().is_integer()
+    def conjugate(self):
+        """Disabled. It does not make sense to use imaginary numbers with time."""
+        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
 
+    def imag(self):
+        """Disabled. It does not make sense to use imaginary numbers with time."""
+        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
+
+    def real(self):
+        """Disabled. It does not make sense to use imaginary numbers with time."""
+        raise NotImplementedError('It does not make sense to use imaginary numbers with time')
 
 
 class TimeSpan:
-    """A time span, that can have both fixed and variable duration. Whether this is variable or not,
+    """A time span object, that can have either fixed or variable length. Whether this is variable or not,
     it depends if there are any calendar time components involved (years, months, weeks and days).
 
-    Time spans support many operations, and can be added and subtracted with numerical values, Time and
-    datetime objects, and other time spans.
+    Time spans support many operations, and can be added and subtracted with numerical values, Propertime's time
+    objects, datetime objects, as well as other time spans.
 
     Their initialization supports both string representations and explicitly setting the various
     components: years, months, weeks, days, hours, minutes and seconds. Sub-second precision can be achieved
-    by setting a floating point value to the seconds component.
+    by using a floating point value for the seconds component.
 
     In the string representation, the mapping is as follows:
 
@@ -675,8 +672,8 @@ class TimeSpan:
 
         TimeSpan('1h').as_seconds()
 
-    However, as soon as a calendar component kicks in, the time span length becomes variable: a time span of one
-    day can last for 23, 24 or 24 hours (and thus 82800, 86400 and 90000 seconds) depending on DST changes.
+    However, as soon as a calendar time component kicks in, the time span length becomes variable: a time span of
+    one day can last for 23, 24 or 24 hours (and thus 82800, 86400 and 90000 seconds) depending on DST changes.
     Similarly, a month can have 28, 29, 30 or 31 days; and a year can have both 365 and 366 days.
 
     Note indeed that:
@@ -685,8 +682,8 @@ class TimeSpan:
 
         TimeSpan('24h') != TimeSpan('1D')
 
-    The length of a time span where one ore more calendar components are involved is therefore well defined only if
-    providing context about *when* it is applied:
+    The length of a time span where one ore more calendar time components are involved is therefore well defined only
+    if providing context about *when* it is applied:
 
     .. code-block:: python
 
@@ -707,7 +704,7 @@ class TimeSpan:
 
         Time() + TimeSpan('24h')
 
-    Lastly, when calendar components are involved, there might also be some undefined or ambiguous operations.
+    Lastly, when calendar time components are involved, there might be also some undefined or ambiguous operations.
     And exactly as it would happen if dividing a number by zero, they will cause an error:
 
     .. code-block:: python
@@ -723,7 +720,7 @@ class TimeSpan:
 
 
     Args:
-        value (:obj:`str`, :obj:`tzinfo`): the time span value as string representation.
+        value (:obj:`str`): the time span value as string representation.
         years (:obj:`int`): the time span years component.
         weeks (:obj:`int`): the time span weeks component.
         months (:obj:`int`): the time span weeks component.
@@ -750,9 +747,9 @@ class TimeSpan:
 
         # Value OR explicit time components
         if value and (years or months or days or hours or minutes or seconds):
-            raise ValueError('Choose between string init and explicit setting of years, months, days, hours etc.')
+            raise ValueError('Choose between string init and explicitly setting years, months, days, hours minutes or seconds.')
 
-        # Special case for second/microsecond
+        # Handle second/microsecond
         if isinstance(seconds, float):
             if  seconds.is_integer():
                 seconds = int(seconds)
@@ -977,7 +974,7 @@ class TimeSpan:
             return False
 
     def round(self, time, how='half'):
-        """Round a Time or datetime according to this TimeSpan."""
+        """Round a time or datetime object according to this TimeSpan."""
 
         if self._is_composite():
             raise ValueError('Sorry, only simple TimeSpans are supported by the round operation')
@@ -1083,15 +1080,15 @@ class TimeSpan:
             return rounded_dt
 
     def floor(self, time):
-        """Floor a Time or datetime according to this TimeSpan."""
+        """Floor a time or datetime object according to this time span."""
         return self.round(time, how='floor')
 
     def ceil(self, time):
-        """Ceil a Time or datetime according to this TimeSpan."""
+        """Ceil a time or datetime object according to this time span."""
         return self.round(time, how='ceil')
 
     def shift(self, time, times=1):
-        """Shift a given Time or datetime n times this TimeSpan."""
+        """Shift a given time or datetime object of n times this time span."""
         if self._is_composite():
             raise ValueError('Sorry, only simple TimeSpans are supported by the shift operation')
  
@@ -1172,7 +1169,7 @@ class TimeSpan:
             return time_shifted_dt
 
     def as_seconds(self, starting_at=None):
-        """The duration of the TimeSpan in seconds."""
+        """The length (duration) of the time span, in seconds."""
 
         start = starting_at
 
