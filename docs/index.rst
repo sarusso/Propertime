@@ -2,13 +2,13 @@ Welcome to Propertime API documentation!
 =============================================
 
 
-Propertime is an attempt to implement proper time management in Python,
-by fully embracing the additional complications due to how we measure time
- as humans instead of just denying them.
+Propertime is an attempt at implementing proper time management in Python,
+by fully embracing the extra complications arising due to the intrinsic need of
+conflating together physical and calendar time instead of neglecting them.
 
 In a nutshell, it provides two main classes: the ``Time`` class for representing
 time (similar to a datetime) and the ``TimeUnit`` class for representing units
-of time (similar to timedelta). Such classes play nice with Python datetimes so
+of time (similar to a timedelta). Such classes play nice with Python datetimes so
 that you can mix and match and use them only when needed.
 
 You can have a look at the `README <https://github.com/sarusso/Propertime/blob/main/README.md>`_

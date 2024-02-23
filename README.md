@@ -6,24 +6,28 @@ An attempt at proper time management in Python.
 
 ## Introduction
 
-Propertime is an attempt to implement proper time management in Python, by fully embracing the extra complications arising due to how we measure time as humans instead of just denying them.
 
-These include but are not limited to: differences between physical and calendar time, time zones, offsets, daylight saving times, undefined calendar time operations and variable length time spans.
+Propertime is an attempt at implementing proper time management in Python, by fully embracing the extra complications arising due to the intrinsic need of conflating together physical and calendar time instead of neglecting them.
 
-In a nutshell, Propertime provides two main classes: the ``Time`` class for representing time (similar to a datetime) and the ``TimeSpan`` class for representing spans of time (similar to timedelta). 
+These include, but are not limited to: time representations, time zones, UTC offsets, daylight saving times, undefined calendar time operations and variable length time spans.
+
+For example, while physical time (seconds, minutes and hours) is always well-defined, calendar time (days, weeks, months and years) is entirely dependent on human conventions and it is often ill-defined: the time of a day without a time zone does not make much sense, a generic day can last either 23, 24 or 25 hours depending on the daylight saving time (DST) switch, and the result of adding a month to the 31st of January is just not defined.
+
+Propertime tries to embrace such complexity and eliminate ambiguity without overcomplicating the code or its interfaces, with the intent of providing a viable solution for common time management issues.
+
+In a nutshell, it provides two main classes: the ``Time`` class for representing time (similar to a datetime) and the ``TimeSpan`` class for representing time spans (similar to a timedelta).
 
 Such classes are implemented assuming two strict hypotheses:
 
-- **Time** is a floating point number corresponding the number of seconds after the zero on the time axis (Epoch), which is set to 1st January 1970 UTC. Any other representations (as dates and hours, time zones, daylight saving times) are just derivatives.
+- **Time** is a floating point number corresponding the number of seconds after the zero on the time axis (Epoch), which is set to 1st January 1970 UTC. Any other representations (as dates and hours, time zones, daylight saving times) are built on top of it.
 
-- **Time spans** can be either of fixed length (for physical time as seconds, minutes, hours) and  of *variable* length (for calendar time as days, weeks, months, years). This means that the length (i.e. the duration in seconds) of a time span involving calendar components it is not defined *unless* in a specific context, or in other words knowing when it is applied.
+- **Time spans** can be either of fixed length (for physical time as seconds, minutes, hours) and  of *variable* length (for calendar time as days, weeks, months, years). This means that the length (i.e. the duration in seconds) of a time span involving calendar components is not defined *unless* it is put in a specific context, or in other words knowing when it is applied.
 
+These two assumptions allow Propertime to adress by design many issues of time manipulation that are still present in Python's built-in datetime module as well as most third-party libraries.
 
-These two assumptions allow Propertime to solve by design many issues in manipulating time that are still present in Python's built-in datetime module as well as in most third-party libraries.
+Propertime provides a simple and neat API, it is relatively well tested and it plays nice with Python datetimes so that you can mix and match and use it only when needed.
 
-Implementing "proper" time comes at a price, though: the library is optimized for consistency over performance and its interfaces are quite strict. Whether it is a suitable solution for you or not, this heavily depends on the use case.
-
-Propertime provides a simple and neat API, it is relatively well tested and its objects play nice with Python datetimes so that you can mix and match and use it only when needed.
+Implementing "proper" time comes at a price, though: the library is optimized for consistency over performance and its interfaces are quite strict. Whether it is a suitable solution for you or not, it heavily depends on your use case.
 
 You can get started by having a look at the example usage below, reading the [quickstart notebook](Quickstart.ipynb) or checking out the [API documentation](https://propertime.readthedocs.io).
 
