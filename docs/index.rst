@@ -32,7 +32,7 @@ Modules
      :toctree:
 
      time
-     utilities
+     utils
      logger
      exceptions
 

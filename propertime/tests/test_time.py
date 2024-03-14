@@ -4,7 +4,7 @@ import sys
 import unittest
 import pytz
 from datetime import datetime
-from ..utilities import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, now_s
+from ..utils import dt, correct_dt_dst, str_from_dt, dt_from_str, s_from_dt, dt_from_s, as_tz, timezonize, now_s
 from ..time import Time, TimeSpan
 from dateutil.tz.tz import tzoffset
 try:

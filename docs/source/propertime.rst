@@ -13,7 +13,7 @@ propertime.time module
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: propertime.utilities
+.. automodule:: propertime.utils
    :members:
    :inherited-members:
    :undoc-members:

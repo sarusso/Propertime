@@ -7,7 +7,7 @@ import pytz
 import copy
 from datetime import datetime, timedelta
 from dateutil.tz.tz import tzoffset
-from .utilities import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
+from .utils import dt, timezonize, dt_from_s, s_from_dt, dt_from_str, now_s, str_from_dt, \
                        get_tz_offset, is_numerical, is_dt_inconsistent, is_dt_ambiguous_without_offset, \
                        correct_dt_dst, get_offset_from_dt
 from .exceptions import ConsistencyError
@@ -413,7 +413,7 @@ class Time(float):
                 if not guessing:
                     raise ValueError('Sorry, datetime {} is ambiguous on time zone {} without an offset'.format(dt_naive, dt.tzinfo))
                 else:
-                    # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utilities
+                    # TODO: move to a _get_utc_offset() support function. Used also in Time __str__ and dt() in utils
                     iso_time_part = str_from_dt(dt).split('T')[1]
                     if '+' in iso_time_part:
                         offset_assumed = '+'+iso_time_part.split('+')[1]
