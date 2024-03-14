@@ -4,7 +4,7 @@ Welcome to Propertime API documentation!
 
 Propertime is an attempt at implementing proper time management in Python,
 by fully embracing the extra complications arising due to the intrinsic need of
-conflating together physical and calendar time instead of neglecting them.
+conflating together physical and calendar time, instead of neglecting them.
 
 In a nutshell, it provides two main classes: the ``Time`` class for representing
 time (similar to a datetime) and the ``TimeUnit`` class for representing units

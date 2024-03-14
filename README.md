@@ -7,17 +7,17 @@ An attempt at proper time management in Python.
 ## Introduction
 
 
-Propertime is an attempt at implementing proper time management in Python, by fully embracing the extra complications arising due to the intrinsic need of conflating together physical and calendar time instead of neglecting them.
+Propertime is an attempt at implementing proper time management in Python, by fully embracing the extra complications arising due to the intrinsic need of conflating together physical and calendar time, instead of neglecting them.
 
-These include, but are not limited to: time representations, time zones, UTC offsets, daylight saving times, undefined calendar time operations and variable length time spans.
+These include, but are not limited to: time formats and representations, time zones, UTC offsets, daylight saving times, undefined calendar time operations and variable length time spans.
 
 For example, while physical time (seconds, minutes and hours) is always well-defined, calendar time (days, weeks, months and years) is entirely dependent on human conventions and it is often ill-defined: the time of a day without a time zone does not make much sense, a generic day can last either 23, 24 or 25 hours depending on the daylight saving time (DST) switch, and the result of adding a month to the 31st of January is just not defined.
 
-Propertime tries to embrace such complexity and eliminate ambiguity without overcomplicating the code or its interfaces, with the intent of providing a viable solution for common time management issues.
+Propertime tries to embrace such complexity and eliminate ambiguity without overcomplicating the code or its interfaces, with the intent of providing a viable solution for common time management challenges.
 
 In a nutshell, it provides two main classes: the ``Time`` class for representing time (similar to a datetime) and the ``TimeSpan`` class for representing time spans (similar to a timedelta).
 
-Such classes are implemented assuming two strict hypotheses:
+Such classes are implemented assuming two strict base hypotheses:
 
 - **Time** is a floating point number corresponding the number of seconds after the zero on the time axis (Epoch), which is set to 1st January 1970 UTC. Any other representations (as dates and hours, time zones, daylight saving times) are built on top of it.
 
