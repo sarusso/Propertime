@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(name='propertime',
-      version='0.2.2',
+      version='1.0.0',
       description='An attempt at proper time management in Python.',
       long_description="""
 Propertime is an attempt at implementing proper time management in Python,
