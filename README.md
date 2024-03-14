@@ -43,7 +43,7 @@ It has just a few requirements, listed in the ``requirements.txt`` file, which y
 
 ```python
 # Time
-from propertime import Time, Timespan
+from propertime import Time, TimeSpan
 
 time_now = Time() # If no arguments, time is now
 
@@ -62,14 +62,14 @@ time = Time(2023,3,12,2,30, tz='US/Eastern') # This just does not exist on
                                              # US/Eastern, due to DST change
 
 # Time spans
-time + TimeSpan('1D') # Tomorrow same hour. Not defined when DTS starts, and
-                      # ambiguous when DTS ends
+time_now + TimeSpan('1D') # Tomorrow same hour. Not defined when DST starts, and
+                          # ambiguous when DST ends
 
-time + TimeSpan('24h') # Tomorrow same hour unless applied over a DTS change,
-                       # where there will be a plus or minus 1 hour difference
+time_now + TimeSpan('24h') # Tomorrow same hour unless applied over a DST change,
+                           # where there will be a plus or minus 1 hour difference
 
-time + TimeSpan('1M') # Next month same day. Not defined if the destination day
-                      # does not exist (i.e. 30th of February)
+time_now + TimeSpan('1M') # Next month same day. Not defined if the destination day
+                          # does not exist (i.e. 30th of February)
 
 
 # Conversions
