@@ -48,11 +48,11 @@ def is_dt_inconsistent(dt):
 def is_dt_ambiguous_without_offset(dt):
     """Check if a datetime object is specified in an ambiguous way on a given time zone"""
 
-    dt_minus_one_hour_via_UTC = UTC.localize(datetime.datetime.utcfromtimestamp(s_from_dt(dt)-3600)).astimezone(dt.tzinfo)
+    dt_minus_one_hour_via_UTC = datetime.datetime.fromtimestamp(s_from_dt(dt)-3600, pytz.UTC).astimezone(dt.tzinfo)
     if dt.hour == dt_minus_one_hour_via_UTC.hour:
         return True
 
-    dt_plus_one_hour_via_UTC = UTC.localize(datetime.datetime.utcfromtimestamp(s_from_dt(dt)+3600)).astimezone(dt.tzinfo)
+    dt_plus_one_hour_via_UTC = datetime.datetime.fromtimestamp(s_from_dt(dt)+3600, pytz.UTC).astimezone(dt.tzinfo)
     if dt.hour == dt_plus_one_hour_via_UTC.hour:
         return True
 
@@ -68,7 +68,7 @@ def now_dt(tz='UTC'):
     """Return the current time in datetime format."""
     if tz != 'UTC':
         raise NotImplementedError()
-    return datetime.datetime.utcnow().replace(tzinfo = pytz.utc)
+    return datetime.datetime.now(pytz.UTC)
 
 
 def dt(*args, **kwargs):
@@ -197,9 +197,9 @@ def dt_from_s(s, tz='UTC'):
     if not is_numerical(s):
         raise TypeError('The argument must be of numerical type, got "{}"'.format(s.__class__.__name__))
     if isinstance(tz, tzoffset):
-        return datetime.datetime.utcfromtimestamp(float(s)).replace(tzinfo=pytz.utc).astimezone(tz)
+        return datetime.datetime.fromtimestamp(float(s), pytz.UTC).astimezone(tz)
     else:
-        dt_utc = datetime.datetime.utcfromtimestamp(float(s)).replace(tzinfo=pytz.utc)
+        dt_utc = datetime.datetime.fromtimestamp(float(s), pytz.UTC)
         if tz=='UTC':
             return dt_utc
         else:
