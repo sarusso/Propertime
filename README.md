@@ -91,7 +91,7 @@ To test against different Python versions, you can use Docker. Using Python offi
     docker run -it -v $PWD:/Propertime python:3.9 /bin/bash -c "cd /Propertime && \
     pip install -r requirements.txt && python -m unittest discover"
     
-There is also a ``regression_test.sh`` script that tests, using Docker, from Python 3.6 to 3.12.
+There is also a ``regression_test.sh`` script that tests, using Docker, from Python 3.6 to 3.13.
 
 
 ## License
