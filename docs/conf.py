@@ -19,11 +19,11 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'Propertime'
-copyright = '2023, Stefano Alberto Russo'
+copyright = '2024, Stefano Alberto Russo'
 author = 'Stefano Alberto Russo'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.0.0'
+release = 'v1.0.1'
 
 
 # -- General configuration ---------------------------------------------------
