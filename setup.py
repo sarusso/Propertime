@@ -6,9 +6,9 @@ setup(name='propertime',
       version='1.0.0',
       description='An attempt at proper time management in Python.',
       long_description="""
-Propertime is an attempt at implementing proper time management in Python,
-by fully embracing the extra complications arising due to the intrinsic need of
-conflating together physical and calendar time, instead of neglecting them.
+Propertime is an attempt to implement proper time management in Python. Its approach
+is to fully embrace the extra complexity arising due to the intrinsic need of conflating
+together physical and calendar time, instead of oversimplifying or dismissing it.
 
 In a nutshell, it provides two main classes: the ``Time`` class for representing
 time (similar to a datetime) and the ``TimeSpan`` class for representing units
