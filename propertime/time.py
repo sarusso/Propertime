@@ -888,7 +888,7 @@ class TimeSpan:
             return self.shift(other, times=-1)
 
         elif isinstance(other, Time):
-            return Time(self.shift(other.to_dt(), times=-1))
+            return Time.from_dt(self.shift(other.to_dt(), times=-1))
 
         elif is_numerical(other):
             return other - self.as_seconds()
@@ -977,7 +977,7 @@ class TimeSpan:
             return False
 
     def round(self, time, how='half'):
-        """Round a time or datetime object according to this TimeSpan."""
+        """Round a time or datetime object according to this time span."""
 
         if self._is_composite():
             raise ValueError('Sorry, only simple TimeSpans are supported by the round operation')
@@ -1091,7 +1091,7 @@ class TimeSpan:
         return self.round(time, how='ceil')
 
     def shift(self, time, times=1):
-        """Shift a given time or datetime object of n times this time span."""
+        """Shift a given time or datetime object n times this time span."""
         if self._is_composite():
             raise ValueError('Sorry, only simple TimeSpans are supported by the shift operation')
  
