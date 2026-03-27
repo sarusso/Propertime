@@ -7,9 +7,9 @@ This project uses [uv](https://docs.astral.sh/uv/) for dependency management and
 
 Install uv if you don't have it yet (see [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/)), then:
 
-    uv sync
+    uv sync --group dev --group docs
 
-This creates a virtual environment and installs all dependencies, including dev tools like Jupyter.
+This creates a virtual environment and installs all dependencies, including dev tools like Jupyter and Sphinx for documentation.
 
 
 ## Running the Jupyter notebook
