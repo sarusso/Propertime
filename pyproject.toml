@@ -1,0 +1,32 @@
+[project]
+name = "propertime"
+version = "1.0.1"
+description = "An attempt at proper time management in Python."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [
+    { name = "Stefano Alberto Russo", email = "stefano.russo@gmail.com" },
+]
+dependencies = [
+    "python-dateutil>=2.8.2,<3.0.0",
+    "pytz",
+]
+
+[project.urls]
+Homepage = "https://github.com/sarusso/Propertime"
+Documentation = "https://propertime.readthedocs.io"
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "nbconvert>=7.17.0",
+]
+docs = [
+    "sphinx>=3.5.2",
+    "sphinx-rtd-theme>=0.5.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

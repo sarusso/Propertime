@@ -32,9 +32,11 @@ You can get started by having a look at the example usage below, reading the [qu
 
 ## Installing
 
-To install Propertime, simply run ``pip install propertime``.
+To install Propertime as a dependency in your project:
 
-It has just a few requirements, listed in the ``requirements.txt`` file, which you can use to manually install or to setup a virtualenv.
+    pip install propertime
+
+If you want to contribute to this library or run the Jupyter notebook, see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 
 ## Example usage
@@ -76,20 +78,6 @@ time = Time.from_iso('2023-12-25T16:12:00+01:00') # Convert from ISO string,
 
 time.to_iso() # Convert to ISO string, similar for datetimes
 ```
-
-
-## Testing
-
-Propertime is relatively well tested using the Python unittest module.
-
-To run the tests, use the command ``python -m unittest discover`` in the project root.
-
-To test against different Python versions, you can use Docker. Using Python official images and runtime requirements installation:
-
-    docker run -it -v $PWD:/Propertime python:3.9 /bin/bash -c "cd /Propertime && \
-    pip install -r requirements.txt && python -m unittest discover"
-    
-There is also a ``regression_test.sh`` script that tests, using Docker, from Python 3.6 to 3.13.
 
 
 ## License
