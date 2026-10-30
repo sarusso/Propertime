@@ -703,6 +703,34 @@ class TestTime(unittest.TestCase):
         self.assertEqual(result, s_from_dt(dt1) // float(time2))
 
 
+        # Across a DST change (spring, adding)
+        time_before_dst_change = Time(1774738800.0, tz="Europe/Rome") # 2026-03-29 00:00:00 CET
+        result = time_before_dst_change + 60*120
+        self.assertEqual(result, 1774738800.0 + 60*120)
+        self.assertEqual(result.offset, 7200)
+
+
+        # Across a DST change (spring, subtracting)
+        time_after_dst_change = Time(1774749600.0, tz="Europe/Rome") # 2026-03-29 04:00:00 CEST
+        result = time_after_dst_change - 60*120
+        self.assertEqual(result, 1774749600.0 - 60*120)
+        self.assertEqual(result.offset, 3600)
+
+
+        # Across a DST change (autumn, adding)
+        time_before_dst_change = Time(1792879200.0, tz="Europe/Rome") # 2026-10-25 00:00:00 CEST
+        result = time_before_dst_change + 60*180
+        self.assertEqual(result, 1792879200.0 + 60*180)
+        self.assertEqual(result.offset, 3600)
+
+
+        # Across a DST change (autumn, subtracting)
+        time_after_dst_change = Time(1792893600.0, tz="Europe/Rome") # 2026-10-25 03:00:00 CET
+        result = time_after_dst_change - 60*120
+        self.assertEqual(result, 1792893600.0 - 60*120)
+        self.assertEqual(result.offset, 7200)
+
+
         # Some edge cases
         self.assertEqual(time1 + Time(1970,1,1,2,0,0, tz=None, offset=3600), 3604.3)
         self.assertEqual(Time(1970,1,1,2,0,0, tz=None, offset=3600) + time1, 3604.3)

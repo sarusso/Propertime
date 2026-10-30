@@ -311,7 +311,13 @@ class Time(float):
             return NotImplemented
 
         else:
-            target_tz, target_offset = self.tz, self.offset
+            # Forward the time zone and let the offset be derived from it, or forward
+            # the fixed offset only if there is no time zone. This because an explicit
+            # offset is bound to this instant and must not be carried across a DST change.
+            if self.tz:
+                target_tz, target_offset = self.tz, 'auto'
+            else:
+                target_tz, target_offset = None, self.offset
             target_value = compute(float(self),other, caller)
 
         return Time(target_value, tz=target_tz, offset=target_offset)
